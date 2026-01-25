@@ -1,0 +1,11 @@
+model SimpleModel
+
+class Person
+attributes
+	name : String
+	hobbies : Sequence(String)
+end
+
+constraints
+context p:Person inv atLeastTwoHobbies:
+	p.hobbies->size() >= 2
