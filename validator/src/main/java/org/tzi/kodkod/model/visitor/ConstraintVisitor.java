@@ -36,7 +36,11 @@ public class ConstraintVisitor extends SimpleVisitor {
 
 	@Override
 	public void visitAttribute(IAttribute attribute) {
-		formula = formula.and(attribute.constraints());
+		System.out.println("\n>>> ConstraintVisitor.visitAttribute: " + attribute.name());
+		Formula attrConstraints = attribute.constraints();
+		System.out.println("Attribute constraints: " + attrConstraints);
+		formula = formula.and(attrConstraints);
+		System.out.println("<<<\n");
 	}
 
 	@Override

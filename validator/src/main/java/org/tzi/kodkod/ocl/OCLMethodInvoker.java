@@ -18,25 +18,42 @@ import kodkod.ast.Variable;
  */
 public class OCLMethodInvoker {
 
-	private boolean set;
+	private int collectionType;
 	private Node object;
+
+	// DEPRECATED METHOD - Kept for reference but no longer used
+	// This method was replaced because it cannot handle SEQUENCE type (only SET vs
+	// OBJECT)
+	// All code has been refactored to use the new invoke() method with int
+	// collectionType parameter
+	/*
+	 * @Deprecated
+	 * public void invoke(String opName, List<Object> arguments, boolean
+	 * setOperation, boolean object_type_nav) {
+	 * // WARNING: This method cannot handle SEQUENCE type!
+	 * // It only distinguishes between SET and OBJECT.
+	 * int collectionType = setOperation ? CollectionType.SET :
+	 * CollectionType.OBJECT;
+	 * invoke(opName, arguments, collectionType, object_type_nav);
+	 * }
+	 */
 
 	/**
 	 * Search the operation method using the OCLOperationLoader and calls the
 	 * transformation method.
 	 * 
-	 * @param opName
-	 * @param arguments
-	 * @param setOperation
-	 * @param object_type_nav
+	 * @param opName          operation name
+	 * @param arguments       method arguments
+	 * @param collectionType  the collection type (OBJECT=0, SET=1, SEQUENCE=2)
+	 * @param object_type_nav true if navigation to object type
 	 */
-	public void invoke(String opName, List<Object> arguments, boolean setOperation, boolean object_type_nav) {
+	public void invoke(String opName, List<Object> arguments, int collectionType, boolean object_type_nav) {
 		OCLOperationLoader operationLoader = new OCLOperationLoader();
-		Method method = operationLoader.getOperationMethod(opName, arguments, setOperation);
+		Method method = operationLoader.getOperationMethod(opName, arguments, collectionType);
 
 		if (method == null) {
-			arguments.add(new Boolean(object_type_nav));
-			method = operationLoader.getOperationMethod(opName, arguments, setOperation);
+			arguments.add(Boolean.valueOf(object_type_nav));
+			method = operationLoader.getOperationMethod(opName, arguments, collectionType);
 
 			if (method == null) {
 				throw new TransformationException("OCL operation " + opName + " is not supported.");
@@ -50,8 +67,15 @@ public class OCLMethodInvoker {
 				replaceSublistWithExpressionArray(arguments, operationLoader.getFirstArrayIndex());
 			}
 
+			System.out
+					.println("DEBUG: Invoking method " + method.getName() + " with " + arguments.size() + " arguments");
+			for (int i = 0; i < arguments.size(); i++) {
+				System.out.println("  arg[" + i + "] = " + arguments.get(i) + " (type: "
+						+ arguments.get(i).getClass().getSimpleName() + ")");
+			}
+
 			object = (Node) method.invoke(operationLoader.getOperationClass(), arguments.toArray());
-			this.set = operationLoader.returnsSet();
+			this.collectionType = operationLoader.getResultCollectionType();
 
 		} catch (Exception e) {
 			throw new TransformationException("Error while invoking method for operation " + opName + ".", e);
@@ -102,11 +126,11 @@ public class OCLMethodInvoker {
 	}
 
 	/**
-	 * Returns true if the result object represents a set.
+	 * Returns the collection type of the result.
 	 * 
-	 * @return
+	 * @return collection type (OBJECT=0, SET=1, SEQUENCE=2)
 	 */
-	public boolean isSet() {
-		return set;
+	public int getCollectionType() {
+		return collectionType;
 	}
 }

@@ -47,6 +47,30 @@ public abstract class OCLOperationGroup {
 	}
 
 	/**
+	 * True if the class contains transformation methods for sequence operations.
+	 * 
+	 * @return
+	 */
+	public boolean isSequenceOperationGroup() {
+		return false;
+	}
+
+	/**
+	 * Gets the collection type of this operation group.
+	 * 
+	 * @return the collection type constant (OBJECT=0, SET=1, SEQUENCE=2)
+	 */
+	public int getCollectionType() {
+		if (isSequenceOperationGroup()) {
+			return CollectionType.SEQUENCE;
+		} else if (isSetOperationGroup()) {
+			return CollectionType.SET;
+		} else {
+			return CollectionType.OBJECT;
+		}
+	}
+
+	/**
 	 * Does the transformation of the operation results in a set.
 	 * 
 	 * @param opName
@@ -54,6 +78,33 @@ public abstract class OCLOperationGroup {
 	 */
 	public boolean returnsSet(String opName) {
 		return false;
+	}
+
+	/**
+	 * Does the transformation of the operation results in a sequence.
+	 * 
+	 * @param opName
+	 * @return
+	 */
+	public boolean returnsSequence(String opName) {
+		return false;
+	}
+
+	/**
+	 * Returns the collection type of the result after applying the operation.
+	 * Default implementation: SEQUENCE > SET > OBJECT priority.
+	 * 
+	 * @param opName operation name
+	 * @return collection type (OBJECT=0, SET=1, SEQUENCE=2)
+	 */
+	public int getResultCollectionType(String opName) {
+		if (returnsSequence(opName)) {
+			return CollectionType.SEQUENCE;
+		} else if (returnsSet(opName)) {
+			return CollectionType.SET;
+		} else {
+			return CollectionType.OBJECT;
+		}
 	}
 
 	/**

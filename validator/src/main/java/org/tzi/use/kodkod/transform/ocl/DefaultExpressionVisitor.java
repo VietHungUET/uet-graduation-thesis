@@ -13,6 +13,7 @@ import org.tzi.kodkod.model.type.EnumType;
 import org.tzi.kodkod.model.type.ObjectType;
 import org.tzi.kodkod.model.type.TypeConstants;
 import org.tzi.kodkod.model.type.TypeLiterals;
+import org.tzi.kodkod.ocl.CollectionType;
 import org.tzi.kodkod.ocl.OCLMethodInvoker;
 import org.tzi.use.kodkod.transform.TransformationException;
 import org.tzi.use.kodkod.transform.TypeConverter;
@@ -65,18 +66,19 @@ import kodkod.ast.Variable;
 public class DefaultExpressionVisitor extends SimpleExpressionVisitor {
 
 	protected static final Logger LOG = Logger.getLogger(DefaultExpressionVisitor.class);
-	
+
 	protected IModel model;
 	protected Map<String, Node> variables;
 	protected List<String> collectionVariables;
 	protected Map<String, IClass> variableClasses;
 	protected Map<String, Variable> replaceVariables;
-	
+
 	protected final Relation undefined;
 	protected final Relation undefined_Set;
 
 	protected Node object;
-	protected boolean set;
+
+	protected int collectionType = CollectionType.OBJECT;
 	protected boolean object_type_nav;
 	protected Type sourceType;
 
@@ -91,7 +93,6 @@ public class DefaultExpressionVisitor extends SimpleExpressionVisitor {
 		undefined = model.typeFactory().undefinedType().relation();
 		undefined_Set = model.typeFactory().undefinedSetType().relation();
 
-		set = false;
 		object_type_nav = false;
 	}
 
@@ -110,15 +111,34 @@ public class DefaultExpressionVisitor extends SimpleExpressionVisitor {
 	 * @return
 	 */
 	public boolean isSet() {
-		return set;
+		return collectionType == CollectionType.SET;
+	}
+
+	/**
+	 * Returns <code>true</code>, if the result is a sequence collection.
+	 * 
+	 * @return
+	 */
+	public boolean isSequence() {
+		return collectionType == CollectionType.SEQUENCE;
+	}
+
+	/**
+	 * Returns the collection type of the result.
+	 * 
+	 * @return collection type (OBJECT=0, SET=1, SEQUENCE=2)
+	 */
+	public int getCollectionType() {
+		return collectionType;
 	}
 
 	public Type getSourceType() {
 		return sourceType;
 	}
-	
+
 	/**
-	 * Returns <code>true</code>, if the result object is a navigation to an object end.
+	 * Returns <code>true</code>, if the result object is a navigation to an object
+	 * end.
 	 * 
 	 * @return
 	 */
@@ -130,23 +150,25 @@ public class DefaultExpressionVisitor extends SimpleExpressionVisitor {
 	public void visitAllInstances(ExpAllInstances exp) {
 		super.visitAllInstances(exp);
 		List<Object> arguments = new ArrayList<Object>();
-		
-		if(exp.getSourceType().isTypeOfClass()){
+
+		if (exp.getSourceType().isTypeOfClass()) {
 			// <Class>.allInstances()
 			IClass clazz = model.getClass(exp.getSourceType().name());
 			arguments.add(clazz.inheritanceOrRegularRelation());
 		}
-		//TODO collect cannot handle vars with arity > 1, but assoc relations have arity = #(associationEnds)
-//		else if(exp.getSourceType().isTypeOfAssociation()){
-//			// <Association>.allInstances()
-//			IAssociation assoc = model.getAssociation(exp.getSourceType().name());
-//			arguments.add(assoc.relation());
-//		}
+		// TODO collect cannot handle vars with arity > 1, but assoc relations have
+		// arity = #(associationEnds)
+		// else if(exp.getSourceType().isTypeOfAssociation()){
+		// // <Association>.allInstances()
+		// IAssociation assoc = model.getAssociation(exp.getSourceType().name());
+		// arguments.add(assoc.relation());
+		// }
 		else {
-			throw new TransformationException("allInstances() not supported for type " + StringUtil.inQuotes(exp.getSourceType().name()));
+			throw new TransformationException(
+					"allInstances() not supported for type " + StringUtil.inQuotes(exp.getSourceType().name()));
 		}
 
-		invokeMethod("allInstances", arguments, false);
+		invokeMethod("allInstances", arguments, CollectionType.OBJECT);
 	}
 
 	@Override
@@ -223,36 +245,38 @@ public class DefaultExpressionVisitor extends SimpleExpressionVisitor {
 	@Override
 	public void visitObjOp(ExpObjOp exp) {
 		super.visitObjOp(exp);
-		DefaultExpressionVisitor visitor = new OperationExpressionVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+		DefaultExpressionVisitor visitor = new OperationExpressionVisitor(model, variables, variableClasses,
+				replaceVariables, collectionVariables);
 		exp.processWithVisitor(visitor);
 		object = visitor.getObject();
-		set = visitor.isSet();
+		collectionType = visitor.getCollectionType();
 		object_type_nav = visitor.isObject_type_nav();
 	}
 
 	@Override
 	public void visitLet(ExpLet exp) {
 		super.visitLet(exp);
-		DefaultExpressionVisitor visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+		DefaultExpressionVisitor visitor = new DefaultExpressionVisitor(model, variables, variableClasses,
+				replaceVariables, collectionVariables);
 		exp.getVarExpression().processWithVisitor(visitor);
 		Node varExpression = visitor.getObject();
 
 		variables.put(exp.getVarname(), varExpression);
-		
-		if(exp.getVarType().isTypeOfClass()){
-			variableClasses.put(exp.getVarname(), model.getClass(((MClass)exp.getVarType()).name()));
+
+		if (exp.getVarType().isTypeOfClass()) {
+			variableClasses.put(exp.getVarname(), model.getClass(((MClass) exp.getVarType()).name()));
 		}
-		
+
 		if (visitor.isSet()) {
 			collectionVariables.add(exp.getVarname());
 		}
 
-		visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+		visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables,
+				collectionVariables);
 		exp.getInExpression().processWithVisitor(visitor);
 		object = visitor.getObject();
-		set = visitor.isSet();
+		collectionType = visitor.getCollectionType();
 		object_type_nav = visitor.isObject_type_nav();
-
 		variables.remove(exp.getVarname());
 		variableClasses.remove(exp.getVarname());
 	}
@@ -263,19 +287,22 @@ public class DefaultExpressionVisitor extends SimpleExpressionVisitor {
 
 		List<Object> arguments = new ArrayList<Object>();
 
-		DefaultExpressionVisitor visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+		DefaultExpressionVisitor visitor = new DefaultExpressionVisitor(model, variables, variableClasses,
+				replaceVariables, collectionVariables);
 		exp.getCondition().processWithVisitor(visitor);
 		arguments.add(visitor.getObject());
 
-		visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+		visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables,
+				collectionVariables);
 		exp.getThenExpression().processWithVisitor(visitor);
 		arguments.add(visitor.getObject());
 
-		visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+		visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables,
+				collectionVariables);
 		exp.getElseExpression().processWithVisitor(visitor);
 		arguments.add(visitor.getObject());
 
-		invokeMethod("if_then_else", arguments, false);
+		invokeMethod("if_then_else", arguments, CollectionType.OBJECT);
 	}
 
 	@Override
@@ -307,12 +334,12 @@ public class DefaultExpressionVisitor extends SimpleExpressionVisitor {
 		super.visitNavigationClassifierSource(exp);
 		visitVariableOperation(exp);
 	}
-	
+
 	@Override
 	public void visitObjAsSet(ExpObjAsSet exp) {
 		super.visitObjAsSet(exp);
 		visitVariableOperation(exp.getObjectExpression());
-		set = true;
+		collectionType = CollectionType.SET;
 	}
 
 	@Override
@@ -325,29 +352,31 @@ public class DefaultExpressionVisitor extends SimpleExpressionVisitor {
 	@Override
 	public void visitQuery(ExpQuery exp) {
 		super.visitQuery(exp);
-		QueryExpressionVisitor visitor = new QueryExpressionVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+		QueryExpressionVisitor visitor = new QueryExpressionVisitor(model, variables, variableClasses, replaceVariables,
+				collectionVariables);
 		exp.processWithVisitor(visitor);
 		object = visitor.getObject();
-		set = visitor.isSet();
+		collectionType = visitor.getCollectionType();
 		object_type_nav = visitor.isObject_type_nav();
 	}
-	
+
 	@Override
 	public void visitSelectByKind(ExpSelectByKind expSelectByKind) {
 		super.visitSelectByKind(expSelectByKind);
-		visitTypeOperation("selectByKind", expSelectByKind.getSourceExpression(), expSelectByKind.type().elemType(), true);
+		visitTypeOperation("selectByKind", expSelectByKind.getSourceExpression(), expSelectByKind.type().elemType(),
+				true);
 	}
-	
+
 	@Override
 	public void visitExpSelectByType(ExpSelectByType expSelectByType) {
 		super.visitExpSelectByType(expSelectByType);
-		visitTypeOperation("selectByType", expSelectByType.getSourceExpression(), expSelectByType.type().elemType(), false);
+		visitTypeOperation("selectByType", expSelectByType.getSourceExpression(), expSelectByType.type().elemType(),
+				false);
 	}
 
 	@Override
 	public void visitSequenceLiteral(ExpSequenceLiteral exp) {
 		super.visitSequenceLiteral(exp);
-		LOG.warn(LogMessages.unsupportedCollectionWarning("sequences"));
 		visitCollectionLiteral(exp, "sequenceLiteral");
 	}
 
@@ -360,10 +389,11 @@ public class DefaultExpressionVisitor extends SimpleExpressionVisitor {
 	@Override
 	public void visitStdOp(ExpStdOp exp) {
 		super.visitStdOp(exp);
-		StandardOperationVisitor visitor = new StandardOperationVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+		StandardOperationVisitor visitor = new StandardOperationVisitor(model, variables, variableClasses,
+				replaceVariables, collectionVariables);
 		exp.processWithVisitor(visitor);
 		object = visitor.getObject();
-		set = visitor.isSet();
+		collectionType = visitor.getCollectionType();
 		object_type_nav = visitor.isObject_type_nav();
 	}
 
@@ -378,7 +408,7 @@ public class DefaultExpressionVisitor extends SimpleExpressionVisitor {
 		super.visitTupleSelectOp(exp);
 		throw new TransformationException("Tuples are not supported");
 	}
-	
+
 	@Override
 	public void visitUndefined(ExpUndefined exp) {
 		super.visitUndefined(exp);
@@ -398,23 +428,24 @@ public class DefaultExpressionVisitor extends SimpleExpressionVisitor {
 	@Override
 	public void visitRange(ExpRange exp) {
 		super.visitRange(exp);
-		
-		org.tzi.use.uml.ocl.expr.Expression[] expToVisit = new org.tzi.use.uml.ocl.expr.Expression[]{
+
+		org.tzi.use.uml.ocl.expr.Expression[] expToVisit = new org.tzi.use.uml.ocl.expr.Expression[] {
 				exp.getStart(),
 				exp.getEnd()
 		};
 		List<Object> args = new ArrayList<Object>(2);
-		
+
 		DefaultExpressionVisitor visitor;
-		for(org.tzi.use.uml.ocl.expr.Expression e : expToVisit){
-			visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+		for (org.tzi.use.uml.ocl.expr.Expression e : expToVisit) {
+			visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables,
+					collectionVariables);
 			e.processWithVisitor(visitor);
 			args.add(visitor.getObject());
 		}
-		
-		invokeMethod("mkSetRange", args, false);
+
+		invokeMethod("mkSetRange", args, CollectionType.OBJECT);
 	}
-	
+
 	/**
 	 * Handle a constant int value.
 	 * 
@@ -422,13 +453,15 @@ public class DefaultExpressionVisitor extends SimpleExpressionVisitor {
 	 */
 	protected void visitConstInteger(int value) {
 		TypeLiterals integerType = model.typeFactory().integerType();
-		
+
 		int bitwidth = KodkodModelValidatorConfiguration.getInstance().bitwidth();
 		int requiredBitwidth = KodkodModelValidatorConfiguration.calculateRequiredBitwidth(value);
-		if(requiredBitwidth > bitwidth){
-			LOG.error("Model contains number " + StringUtil.inQuotes(value) + " which is too big for configured bitwidth. Required bitwidth: " + requiredBitwidth + " or greater.");
+		if (requiredBitwidth > bitwidth) {
+			LOG.error("Model contains number " + StringUtil.inQuotes(value)
+					+ " which is too big for configured bitwidth. Required bitwidth: " + requiredBitwidth
+					+ " or greater.");
 		}
-		
+
 		integerType.addTypeLiteral("" + value);
 		object = integerType.getTypeLiteral("" + value);
 	}
@@ -443,15 +476,16 @@ public class DefaultExpressionVisitor extends SimpleExpressionVisitor {
 		List<Object> arguments = new ArrayList<Object>();
 
 		sourceType = exp.type();
-		
+
 		DefaultExpressionVisitor visitor;
 		for (org.tzi.use.uml.ocl.expr.Expression expression : exp.getElemExpr()) {
-			visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+			visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables,
+					collectionVariables);
 			expression.processWithVisitor(visitor);
 			arguments.add(visitor.getObject());
 		}
 
-		invokeMethod(literal, arguments, false);
+		invokeMethod(literal, arguments, CollectionType.OBJECT);
 	}
 
 	/**
@@ -460,10 +494,11 @@ public class DefaultExpressionVisitor extends SimpleExpressionVisitor {
 	 * @param exp
 	 */
 	private void visitVariableOperation(org.tzi.use.uml.ocl.expr.Expression exp) {
-		VariableOperationVisitor visitor = new VariableOperationVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+		VariableOperationVisitor visitor = new VariableOperationVisitor(model, variables, variableClasses,
+				replaceVariables, collectionVariables);
 		exp.processWithVisitor(visitor);
 		object = visitor.getObject();
-		set = visitor.isSet();
+		collectionType = visitor.getCollectionType();
 		object_type_nav = visitor.isObject_type_nav();
 		sourceType = visitor.getSourceType();
 	}
@@ -475,41 +510,57 @@ public class DefaultExpressionVisitor extends SimpleExpressionVisitor {
 	 * @param sourceExpression
 	 * @param targetType
 	 */
-	private void visitTypeOperation(String opName, org.tzi.use.uml.ocl.expr.Expression sourceExpression, Type targetType, boolean useInheritance) {
+	private void visitTypeOperation(String opName, org.tzi.use.uml.ocl.expr.Expression sourceExpression,
+			Type targetType, boolean useInheritance) {
 		List<Object> arguments = new ArrayList<Object>();
 
-		DefaultExpressionVisitor visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+		DefaultExpressionVisitor visitor = new DefaultExpressionVisitor(model, variables, variableClasses,
+				replaceVariables, collectionVariables);
 		sourceExpression.processWithVisitor(visitor);
 		arguments.add(visitor.getObject());
-		set = visitor.isSet();
+		int collType = visitor.getCollectionType(); // Use collection type from visitor
 		object_type_nav = visitor.isObject_type_nav();
 
 		TypeConverter typeConverter = new TypeConverter(model);
 		org.tzi.kodkod.model.type.Type type = typeConverter.convert(targetType);
 		Expression typeExpression;
-		if(type instanceof ObjectType){
+		if (type instanceof ObjectType) {
 			IClass cls = ((ObjectType) type).clazz();
 			typeExpression = useInheritance ? cls.inheritanceOrRegularRelation() : cls.relation();
 		} else {
 			typeExpression = typeConverter.typeToExpression(type);
 		}
-		
+
 		if (typeExpression != null) {
 			arguments.add(typeExpression);
 		} else {
 			throw new TransformationException("No support for " + targetType + " as target type of " + opName + ".");
 		}
 
-		invokeMethod(opName, arguments, set);
+		invokeMethod(opName, arguments, collType);
 	}
 
 	/**
 	 * Invokes the method to transform the operation with the given name.
 	 */
 	protected void invokeMethod(String opName, List<Object> arguments, boolean setOperation) {
+		int collType = setOperation ? CollectionType.SET : CollectionType.OBJECT;
+		invokeMethod(opName, arguments, collType);
+	}
+
+	/**
+	 * Invokes the method to transform the operation with the given name.
+	 * 
+	 * @param opName         operation name
+	 * @param arguments      method arguments
+	 * @param collectionType the collection type (OBJECT=0, SET=1, SEQUENCE=2)
+	 */
+	protected void invokeMethod(String opName, List<Object> arguments, int collectionType) {
 		OCLMethodInvoker invoker = new OCLMethodInvoker();
-		invoker.invoke(opName, arguments, setOperation, object_type_nav);
+		invoker.invoke(opName, arguments, collectionType, object_type_nav);
 		object = invoker.getObject();
-		set = invoker.isSet();
+		// Get the actual result collection type from the invoker
+		// (not the input collectionType, as the operation may change it)
+		this.collectionType = invoker.getCollectionType();
 	}
 }

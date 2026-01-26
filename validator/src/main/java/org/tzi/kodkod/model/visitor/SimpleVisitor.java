@@ -104,4 +104,9 @@ public class SimpleVisitor implements Visitor {
 	public void visitAnyType(AnyType anyType) {
 	}
 
+	@Override
+	public void visitSequenceType(org.tzi.kodkod.model.type.SequenceType sequenceType) {
+		visitType(sequenceType);
+	}
+
 }

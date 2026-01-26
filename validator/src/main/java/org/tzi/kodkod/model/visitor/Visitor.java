@@ -50,4 +50,6 @@ public interface Visitor {
 	public void visitRealType(RealType realType);
 
 	public void visitAnyType(AnyType anyType);
+
+	public void visitSequenceType(org.tzi.kodkod.model.type.SequenceType sequenceType);
 }

@@ -59,66 +59,74 @@ public class OperationExpressionVisitor extends DefaultExpressionVisitor {
 
 		org.tzi.use.uml.ocl.expr.Expression[] arguments = exp.getArguments();
 		visitOperationVariable(arguments[0]);
-		
+
 		// recursion detection
-		//TODO remove singleton pattern usage
+		// TODO remove singleton pattern usage
 		if (OperationStack.INSTANCE.contains(exp.getOperation())) {
 			OperationStack.INSTANCE.clear();
-			throw new TransformationException("Operation " + StringUtil.inQuotes(operation.name()) + " is recursive and thereby cannot be transformed.");
+			throw new TransformationException("Operation " + StringUtil.inQuotes(operation.name())
+					+ " is recursive and thereby cannot be transformed.");
 		}
-		
+
 		OperationStack.INSTANCE.push(operation);
 		try {
 			visitParams(operation, arguments);
-			
+
 			Node self = opVariables.get("self");
 			Expression expression = getAsExpression(self);
-			
+
 			Map<MClass, MOperation> overiddenOperations = getOverriddenOperations(operation.cls(), operation.name());
-			
+
 			DefaultExpressionVisitor mainVisitor = visitOperation(operation);
 			if (overiddenOperations.isEmpty()) {
 				object = mainVisitor.getObject();
 			} else {
 				Iterator<MClass> iterator = overiddenOperations.keySet().iterator();
-				object = handleOveriddenOperation(iterator, overiddenOperations, expression, getAsExpression(mainVisitor.getObject()));
+				object = handleOveriddenOperation(iterator, overiddenOperations, expression,
+						getAsExpression(mainVisitor.getObject()));
 			}
-			
-			set = exp.getOperation().resultType().isKindOfCollection(VoidHandling.EXCLUDE_VOID);
+
+			// Determine collection type based on operation result type
+			if (exp.getOperation().resultType().isKindOfCollection(VoidHandling.EXCLUDE_VOID)) {
+				collectionType = org.tzi.kodkod.ocl.CollectionType.SET;
+			} else {
+				collectionType = org.tzi.kodkod.ocl.CollectionType.OBJECT;
+			}
 			object_type_nav = mainVisitor.isObject_type_nav();
-			
 			object = expression.in(undefined).thenElse(undefined, getAsExpression(object));
-			
+
 			opVariables.remove("self");
 			opVariableClasses.remove("self");
-			
-			//variables.putAll(opVariables);
-			//variableClasses.putAll(opVariableClasses);
-		}
-		finally {
-			// stack might have been cleared because a recursion has been detected and we are currently handling the exception throw
-			if(!OperationStack.INSTANCE.isEmpty()){
+
+			// variables.putAll(opVariables);
+			// variableClasses.putAll(opVariableClasses);
+		} finally {
+			// stack might have been cleared because a recursion has been detected and we
+			// are currently handling the exception throw
+			if (!OperationStack.INSTANCE.isEmpty()) {
 				OperationStack.INSTANCE.pop();
 			}
 		}
 	}
 
-	private Expression handleOveriddenOperation(Iterator<MClass> iterator, Map<MClass, MOperation> overiddenOperations, Expression selfExpression,
+	private Expression handleOveriddenOperation(Iterator<MClass> iterator, Map<MClass, MOperation> overiddenOperations,
+			Expression selfExpression,
 			Expression object) {
 		if (!iterator.hasNext()) {
 			return object;
 		} else {
 			MClass cls = iterator.next();
-			
+
 			IClass baseVariableClass = opVariableClasses.remove("self");
 			opVariableClasses.put("self", model.getClass(cls.name()));
-			
+
 			Formula inFormula = selfExpression.in(model.getClass(cls.name()).relation());
 			Expression expression = getAsExpression(visitOperation(overiddenOperations.get(cls)).getObject());
-			
+
 			opVariableClasses.put("self", baseVariableClass);
-			
-			return inFormula.thenElse(expression, handleOveriddenOperation(iterator, overiddenOperations, selfExpression, object));
+
+			return inFormula.thenElse(expression,
+					handleOveriddenOperation(iterator, overiddenOperations, selfExpression, object));
 		}
 	}
 
@@ -151,7 +159,8 @@ public class OperationExpressionVisitor extends DefaultExpressionVisitor {
 	 */
 
 	private DefaultExpressionVisitor visitOperation(MOperation operation) {
-		DefaultExpressionVisitor visitor = new DefaultExpressionVisitor(model, opVariables, opVariableClasses, opReplaceVariables,
+		DefaultExpressionVisitor visitor = new DefaultExpressionVisitor(model, opVariables, opVariableClasses,
+				opReplaceVariables,
 				opCollectionVariables);
 		operation.expression().processWithVisitor(visitor);
 
@@ -168,20 +177,21 @@ public class OperationExpressionVisitor extends DefaultExpressionVisitor {
 	private void visitParams(MOperation operation, org.tzi.use.uml.ocl.expr.Expression[] arguments) {
 		DefaultExpressionVisitor visitor;
 		VarDeclList params = operation.paramList();
-		
+
 		if (params.size() > 0) {
 			VarDecl currentParam;
 			for (int i = 0; i < params.size(); i++) {
-				visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+				visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables,
+						collectionVariables);
 				arguments[i + 1].processWithVisitor(visitor);
 
 				currentParam = params.varDecl(i);
-				
+
 				opVariables.put(currentParam.name(), visitor.getObject());
-				
-				if(currentParam.type().isTypeOfClass()){
+
+				if (currentParam.type().isTypeOfClass()) {
 					MClass type = (MClass) currentParam.type();
-					opVariableClasses.put(currentParam.name(),model.getClass(type.name()));
+					opVariableClasses.put(currentParam.name(), model.getClass(type.name()));
 				}
 
 				if (currentParam.type().isKindOfCollection(VoidHandling.EXCLUDE_VOID)) {
@@ -198,10 +208,11 @@ public class OperationExpressionVisitor extends DefaultExpressionVisitor {
 	 */
 
 	private void visitOperationVariable(org.tzi.use.uml.ocl.expr.Expression operationVariable) {
-		VariableOperationVisitor variableVisitor = new VariableOperationVisitor(model, variables, variableClasses, replaceVariables,
+		VariableOperationVisitor variableVisitor = new VariableOperationVisitor(model, variables, variableClasses,
+				replaceVariables,
 				collectionVariables);
 		operationVariable.processWithVisitor(variableVisitor);
-		
+
 		opVariables.put("self", variableVisitor.getObject());
 
 		IClass clazz = variableVisitor.getAttributeClass();

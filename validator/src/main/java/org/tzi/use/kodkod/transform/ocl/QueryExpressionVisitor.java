@@ -67,20 +67,21 @@ public class QueryExpressionVisitor extends DefaultExpressionVisitor {
 			throw new TransformationException(LogMessages.closureCollectionMessage);
 		}
 
-		invokeMethod(expClosure.name(), arguments, true);
+		invokeMethod(expClosure.name(), arguments, org.tzi.kodkod.ocl.CollectionType.SET);
 	}
 
-	private void collectTypeCheck(ExpQuery exp){
-		if(exp.getRangeExpression().type().isKindOfBag(VoidHandling.EXCLUDE_VOID)
-				|| exp.getRangeExpression().type().isKindOfSet(VoidHandling.EXCLUDE_VOID)){
-			LOG.warn("Collect operation `" + exp.toString() + "' results in unsupported type `Bag'. It will be interpreted as `Set'.");
+	private void collectTypeCheck(ExpQuery exp) {
+		if (exp.getRangeExpression().type().isKindOfBag(VoidHandling.EXCLUDE_VOID)
+				|| exp.getRangeExpression().type().isKindOfSet(VoidHandling.EXCLUDE_VOID)) {
+			LOG.warn("Collect operation `" + exp.toString()
+					+ "' results in unsupported type `Bag'. It will be interpreted as `Set'.");
+		} else if (exp.getRangeExpression().type().isKindOfOrderedSet(VoidHandling.EXCLUDE_VOID)) {
+			LOG.warn("Collect operation `" + exp.toString()
+					+ "' results in unsupported type `OrderedSet'. It will be interpreted as `Set'.");
 		}
-		else if(exp.getRangeExpression().type().isKindOfOrderedSet(VoidHandling.EXCLUDE_VOID)
-				|| exp.getRangeExpression().type().isKindOfSequence(VoidHandling.EXCLUDE_VOID)){
-			LOG.warn("Collect operation `" + exp.toString() + "' results in unsupported type `Sequence'. It will be interpreted as `Set'.");
-		}
+
 	}
-	
+
 	@Override
 	public void visitCollect(ExpCollect exp) {
 		collectTypeCheck(exp);
@@ -105,23 +106,39 @@ public class QueryExpressionVisitor extends DefaultExpressionVisitor {
 
 	@Override
 	public void visitIsUnique(ExpIsUnique exp) {
-		DefaultExpressionVisitor visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+		DefaultExpressionVisitor visitor = new DefaultExpressionVisitor(model, variables, variableClasses,
+				replaceVariables, collectionVariables);
 		exp.getRangeExpression().processWithVisitor(visitor);
 		arguments.add(0, visitor.getObject());
 
-		List<String> replacedVariables = createVariables(exp.getVariableDeclarations(), ((Expression) visitor.getObject()).arity());
+		List<String> replacedVariables = createVariables(exp.getVariableDeclarations(),
+				((Expression) visitor.getObject()).arity());
 
-		DefaultExpressionVisitor visitor2 = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+		DefaultExpressionVisitor visitor2 = new DefaultExpressionVisitor(model, variables, variableClasses,
+				replaceVariables, collectionVariables);
 		exp.getQueryExpression().processWithVisitor(visitor2);
 		arguments.add(1, visitor2.getObject());
 
-		replacedVariables.addAll(createVariables(exp.getVariableDeclarations(), ((Expression) visitor.getObject()).arity()));
+		replacedVariables
+				.addAll(createVariables(exp.getVariableDeclarations(), ((Expression) visitor.getObject()).arity()));
 
-		visitor2 = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+		visitor2 = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables,
+				collectionVariables);
 		exp.getQueryExpression().processWithVisitor(visitor2);
 		arguments.add(2, visitor2.getObject());
 
-		invokeMethod(exp.name(), arguments, true);
+		// Determine collectionType based on range expression type
+		org.tzi.use.uml.ocl.type.Type rangeType = exp.getRangeExpression().type();
+		int collectionType;
+		if (rangeType.isTypeOfSequence() || rangeType.isTypeOfOrderedSet()) {
+			collectionType = org.tzi.kodkod.ocl.CollectionType.SEQUENCE;
+		} else if (rangeType.isKindOfCollection(VoidHandling.EXCLUDE_VOID)) {
+			collectionType = org.tzi.kodkod.ocl.CollectionType.SET;
+		} else {
+			collectionType = org.tzi.kodkod.ocl.CollectionType.OBJECT;
+		}
+
+		invokeMethod(exp.name(), arguments, collectionType);
 
 		removeReplaceVariable(replacedVariables);
 	}
@@ -140,26 +157,42 @@ public class QueryExpressionVisitor extends DefaultExpressionVisitor {
 	public void visitSelect(ExpSelect exp) {
 		visitQueryAndInvoke(exp);
 	}
-	
+
 	public void visitQuery(ExpQuery exp) {
-		DefaultExpressionVisitor visitor = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+		DefaultExpressionVisitor visitor = new DefaultExpressionVisitor(model, variables, variableClasses,
+				replaceVariables, collectionVariables);
 		exp.getRangeExpression().processWithVisitor(visitor);
 		sourceType = exp.getRangeExpression().type();
 		arguments.add(0, visitor.getObject());
 
-		List<String> replacedVariables = createVariables(exp.getVariableDeclarations(), ((Expression) visitor.getObject()).arity());
+		List<String> replacedVariables = createVariables(exp.getVariableDeclarations(),
+				((Expression) visitor.getObject()).arity());
 
-		DefaultExpressionVisitor visitor2 = new DefaultExpressionVisitor(model, variables, variableClasses, replaceVariables, collectionVariables);
+		DefaultExpressionVisitor visitor2 = new DefaultExpressionVisitor(model, variables, variableClasses,
+				replaceVariables, collectionVariables);
 		exp.getQueryExpression().processWithVisitor(visitor2);
 		arguments.add(1, visitor2.getObject());
-		
+
 		removeReplaceVariable(replacedVariables);
 	}
-	
+
 	private void visitQueryAndInvoke(ExpQuery exp) {
 		visitQuery(exp);
 
-		invokeMethod(exp.name(), arguments, true);
+		// Determine collectionType based on sourceType (range expression type)
+		int collectionType;
+		if (sourceType.isTypeOfSequence() || sourceType.isTypeOfOrderedSet()) {
+			// Source is sequence, so use SEQUENCE collection type
+			collectionType = org.tzi.kodkod.ocl.CollectionType.SEQUENCE;
+		} else if (sourceType.isKindOfCollection(VoidHandling.EXCLUDE_VOID)) {
+			// Source is set, bag, or other collection type
+			collectionType = org.tzi.kodkod.ocl.CollectionType.SET;
+		} else {
+			// Source is not a collection
+			collectionType = org.tzi.kodkod.ocl.CollectionType.OBJECT;
+		}
+
+		invokeMethod(exp.name(), arguments, collectionType);
 	}
 
 	private void removeReplaceVariable(List<String> replacedVariables) {

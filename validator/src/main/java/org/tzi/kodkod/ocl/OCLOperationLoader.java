@@ -33,15 +33,29 @@ public class OCLOperationLoader {
 		registry = OCLGroupRegistry.INSTANCE;
 	}
 
+	// /**
+	// * Returns the transformation method for the given ocl operation.
+	// *
+	// * @param opName
+	// * @param arguments
+	// * @param setOperation
+	// * @return
+	// */
+	// public Method getOperationMethod(String opName, List<Object> arguments,
+	// boolean setOperation) {
+	// return getOperationMethod(opName, arguments, setOperation ?
+	// CollectionType.SET : CollectionType.OBJECT);
+	// }
+
 	/**
 	 * Returns the transformation method for the given ocl operation.
 	 * 
 	 * @param opName
 	 * @param arguments
-	 * @param setOperation
+	 * @param collectionType the collection type (OBJECT=0, SET=1, SEQUENCE=2)
 	 * @return
 	 */
-	public Method getOperationMethod(String opName, List<Object> arguments, boolean setOperation) {
+	public Method getOperationMethod(String opName, List<Object> arguments, int collectionType) {
 		operatorName = opName;
 
 		Class<?>[] parameterTypes = extractParameterTypes(arguments);
@@ -50,13 +64,32 @@ public class OCLOperationLoader {
 			operatorName = registry.getSymbolOperationMapping().get(opName);
 		}
 
-		LOG.debug("Search: " + operatorName + " - set operation: " + setOperation + " - args: " + arguments.size());
+		System.out.println("\n*** OCLOperationLoader.getOperationMethod ***");
+		System.out.println("Operation name: " + operatorName);
+		System.out.println("Collection type: " + CollectionType.toString(collectionType));
+		System.out.println("Arguments count: " + arguments.size());
+		System.out.print("Parameter types: ");
 
-		Method method = searchMethod(operatorName, parameterTypes, setOperation);
+		LOG.debug("Search: " + operatorName + " - collection type: " + CollectionType.toString(collectionType)
+				+ " - args: " + arguments.size());
 
-		if (method == null) {
-			method = research(opName, setOperation, parameterTypes);
+		Method method = searchMethod(operatorName, parameterTypes, collectionType);
+
+		if (method != null) {
+			System.out.println("✅ Found method: " + method);
+			System.out.println("   In group: " + oclOperationGroup.getClass().getSimpleName());
+		} else {
+			System.out.println("❌ Method not found, trying research...");
 		}
+		if (method == null) {
+			method = research(opName, collectionType, parameterTypes);
+			if (method != null) {
+				System.out.println("✅ Found via research: " + method);
+			} else {
+				System.out.println("❌ Still not found after research!");
+			}
+		}
+		System.out.println("*******************************************\n");
 
 		return method;
 	}
@@ -79,7 +112,7 @@ public class OCLOperationLoader {
 			if (currentArgument instanceof Variable) {
 				parameterTypes[i] = Variable.class;
 				variableIndexes.add(i);
-				 expressionIndexes.add(i);
+				expressionIndexes.add(i);
 			} else if (currentArgument instanceof Expression) {
 				parameterTypes[i] = Expression.class;
 				expressionIndexes.add(i);
@@ -97,19 +130,29 @@ public class OCLOperationLoader {
 	 * 
 	 * @param opName
 	 * @param parameterTypes
-	 * @param setOperation
+	 * @param collectionType the collection type (OBJECT=0, SET=1, SEQUENCE=2)
 	 * @return
 	 */
-	private Method searchMethod(String opName, Class<?>[] parameterTypes, boolean setOperation) {
+	private Method searchMethod(String opName, Class<?>[] parameterTypes, int collectionType) {
 		Method method = null;
+
+		System.out.println("\n>>> searchMethod: " + opName);
+		System.out.println("    Looking for collection type: " + CollectionType.toString(collectionType));
 
 		for (OCLOperationGroup operation : registry.getOperationGroups()) {
 			try {
 				method = operation.getClass().getMethod(opName, parameterTypes);
+
 				if (method != null) {
 					oclOperationGroup = operation;
-					if (oclOperationGroup.isSetOperationGroup() == setOperation) {
-						LOG.debug("Find: " + oclOperationGroup.getClass().getSimpleName() + " - " + method.getName());
+					int groupType = oclOperationGroup.getCollectionType();
+					System.out.println("    Found in: " + operation.getClass().getSimpleName());
+					System.out.println("    Group type: " + CollectionType.toString(groupType));
+					System.out.println("    Match? " + (groupType == collectionType));
+
+					if (oclOperationGroup.getCollectionType() == collectionType) {
+						LOG.debug("Find: " + oclOperationGroup.getClass().getSimpleName() + " - " + method.getName()
+								+ " (type: " + CollectionType.toString(collectionType) + ")");
 						break;
 					} else {
 						method = null;
@@ -126,17 +169,18 @@ public class OCLOperationLoader {
 	 * Search the transformation method with a different approach.
 	 * 
 	 * @param opName
-	 * @param setOperation
+	 * @param collectionType the collection type (OBJECT=0, SET=1, SEQUENCE=2)
 	 * @param parameterTypes
 	 * @return
 	 */
-	private Method research(String opName, boolean setOperation, Class<?>[] parameterTypes) {
+	private Method research(String opName, int collectionType, Class<?>[] parameterTypes) {
 		Method method = null;
 		if (variableIndexes.size() > 0) {
-			method = researchWithExpression(operatorName, setOperation, parameterTypes);
+			method = researchWithExpression(operatorName, collectionType, parameterTypes);
 		}
 		if (method == null && expressionIndexes.size() > 0) {
-			method = researchWithArray(opName, setOperation, parameterTypes, Expression[].class, expressionIndexes.get(0));
+			method = researchWithArray(opName, collectionType, parameterTypes, Expression[].class,
+					expressionIndexes.get(0));
 			if (method != null) {
 				needExpressionArray = true;
 			}
@@ -149,25 +193,26 @@ public class OCLOperationLoader {
 	 * expressen parametey types instead of variables.
 	 * 
 	 * @param opName
-	 * @param setOperation
+	 * @param collectionType the collection type (OBJECT=0, SET=1, SEQUENCE=2)
 	 * @param parameterTypes
 	 * @return
 	 */
-	private Method researchWithExpression(String opName, boolean setOperation, Class<?>[] parameterTypes) {
+	private Method researchWithExpression(String opName, int collectionType, Class<?>[] parameterTypes) {
 		for (int i = 0; i < variableIndexes.size(); i++) {
 			parameterTypes[variableIndexes.get(i)] = Expression.class;
 		}
 
-		Method method = searchMethod(opName, parameterTypes, setOperation);
+		Method method = searchMethod(opName, parameterTypes, collectionType);
 		if (method == null) {
-			method = researchWithLastVariable(opName, setOperation, parameterTypes, 1);
+			method = researchWithLastVariable(opName, collectionType, parameterTypes, 1);
 			if (method == null) {
-				method = researchWithLastVariable(opName, setOperation, parameterTypes, 2);
+				method = researchWithLastVariable(opName, collectionType, parameterTypes, 2);
 			}
 		}
 
 		if (method == null) {
-			method = researchWithArray(opName, setOperation, parameterTypes, Variable[].class, variableIndexes.get(0));
+			method = researchWithArray(opName, collectionType, parameterTypes, Variable[].class,
+					variableIndexes.get(0));
 			if (method != null) {
 				needVariableArray = true;
 			}
@@ -181,18 +226,19 @@ public class OCLOperationLoader {
 	 * variables except the last 'lastVariables'.
 	 * 
 	 * @param opName
-	 * @param setOperation
+	 * @param collectionType the collection type (OBJECT=0, SET=1, SEQUENCE=2)
 	 * @param parameterTypes
 	 * @param lastVariables
 	 * @return
 	 */
-	private Method researchWithLastVariable(String opName, boolean setOperation, Class<?>[] parameterTypes, int lastVariables) {
+	private Method researchWithLastVariable(String opName, int collectionType, Class<?>[] parameterTypes,
+			int lastVariables) {
 		if (variableIndexes.size() - lastVariables >= 0) {
 			for (int i = variableIndexes.size() - 1; i >= variableIndexes.size() - lastVariables; i--) {
 				parameterTypes[variableIndexes.get(i)] = Variable.class;
 			}
 
-			return searchMethod(opName, parameterTypes, setOperation);
+			return searchMethod(opName, parameterTypes, collectionType);
 		}
 		return null;
 	}
@@ -213,13 +259,14 @@ public class OCLOperationLoader {
 	 * single variables.
 	 * 
 	 * @param opName
-	 * @param setOperation
+	 * @param collectionType the collection type (OBJECT=0, SET=1, SEQUENCE=2)
 	 * @param parameterTypes
 	 * @param arrayClass
 	 * @param arrayIndex
 	 * @return
 	 */
-	private Method researchWithArray(String opName, boolean setOperation, Class<?>[] parameterTypes, Class<?> arrayClass, int arrayIndex) {
+	private Method researchWithArray(String opName, int collectionType, Class<?>[] parameterTypes, Class<?> arrayClass,
+			int arrayIndex) {
 		int firstVariableIndex = arrayIndex;
 		Class<?>[] newParameterTypes = new Class<?>[firstVariableIndex + 1];
 		for (int i = 0; i < firstVariableIndex; i++) {
@@ -228,7 +275,7 @@ public class OCLOperationLoader {
 
 		newParameterTypes[firstVariableIndex] = arrayClass;
 
-		return searchMethod(opName, newParameterTypes, setOperation);
+		return searchMethod(opName, newParameterTypes, collectionType);
 	}
 
 	/**
@@ -276,7 +323,20 @@ public class OCLOperationLoader {
 	 * @return
 	 */
 	public boolean returnsSet() {
-		LOG.debug("Method for operator " + operatorName + " returns set: " + oclOperationGroup.returnsSet(operatorName));
+		LOG.debug(
+				"Method for operator " + operatorName + " returns set: " + oclOperationGroup.returnsSet(operatorName));
 		return oclOperationGroup.returnsSet(operatorName);
+	}
+
+	/**
+	 * Returns the collection type of the result after applying the operation.
+	 * 
+	 * @return collection type (OBJECT=0, SET=1, SEQUENCE=2)
+	 */
+	public int getResultCollectionType() {
+		int resultType = oclOperationGroup.getResultCollectionType(operatorName);
+		LOG.debug("Method for operator " + operatorName + " returns collection type: "
+				+ CollectionType.toString(resultType));
+		return resultType;
 	}
 }
