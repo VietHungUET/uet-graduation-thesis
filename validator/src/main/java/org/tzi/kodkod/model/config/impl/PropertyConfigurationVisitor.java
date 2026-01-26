@@ -28,6 +28,7 @@ import org.tzi.kodkod.model.impl.Range;
 import org.tzi.kodkod.model.type.ConfigurableType;
 import org.tzi.kodkod.model.type.IntegerType;
 import org.tzi.kodkod.model.type.RealType;
+import org.tzi.kodkod.model.type.SequenceType;
 import org.tzi.kodkod.model.type.SetType;
 import org.tzi.kodkod.model.type.StringType;
 import org.tzi.kodkod.model.type.Type;
@@ -57,7 +58,7 @@ public class PropertyConfigurationVisitor extends SimpleVisitor {
 		config = c;
 		this.warningsOut = warningsOut;
 	}
-	
+
 	public PropertyConfigurationVisitor(String file, PrintWriter warningsOut) throws ConfigurationException {
 		this(new PropertiesConfiguration(file), warningsOut);
 	}
@@ -91,7 +92,7 @@ public class PropertyConfigurationVisitor extends SimpleVisitor {
 		ClassConfigurator configurator = setClassConfigurator(clazz, values);
 		clazz.objectType().setValues(values);
 		clazz.objectType().setValueSize(configurator.getMax());
-		
+
 		iterate(clazz.attributes().iterator());
 		iterate(clazz.invariants().iterator());
 	}
@@ -105,7 +106,8 @@ public class PropertyConfigurationVisitor extends SimpleVisitor {
 		Set<String[]> typeSpecificValues = new HashSet<String[]>();
 		Set<String> domainValues = new HashSet<String>();
 
-		domainValues.addAll(readAttributeValues(attribute.type(), className + "_" + attribute.name(), typeSpecificValues));
+		domainValues
+				.addAll(readAttributeValues(attribute.type(), className + "_" + attribute.name(), typeSpecificValues));
 
 		readSpecificAttributeValues(attribute, owner, specificValues, typeSpecificValues);
 
@@ -171,7 +173,7 @@ public class PropertyConfigurationVisitor extends SimpleVisitor {
 
 		TypeConfigurator configurator = typeConfigurators.get(type);
 		List<String[]> specificValues = typeSpecificValues.get(type);
-		if(specificValues.size() > 0){
+		if (specificValues.size() > 0) {
 			configurator.setSpecificValues(specificValues);
 		}
 
@@ -182,72 +184,74 @@ public class PropertyConfigurationVisitor extends SimpleVisitor {
 		if (type.isInteger()) {
 			min = readSize(type.name() + PropertyEntry.integerValuesMin, Integer.MIN_VALUE, true);
 			max = readSize(type.name() + PropertyEntry.integerValuesMax, Integer.MIN_VALUE, true);
-			
+
 			defaultMin = DefaultConfigurationValues.integerMin;
 			defaultMax = DefaultConfigurationValues.integerMax;
-			
+
 			// check for values exceeding bitwidth
 			int bitwidth = KodkodModelValidatorConfiguration.getInstance().bitwidth();
-			
-			if(!specificValues.isEmpty()){
+
+			if (!specificValues.isEmpty()) {
 				int maxSpecific = Integer.MIN_VALUE;
-				for(String[] s : specificValues){
+				for (String[] s : specificValues) {
 					int curr;
 					try {
 						curr = Integer.valueOf(s[0]);
-					} catch(NumberFormatException ex){
+					} catch (NumberFormatException ex) {
 						continue;
 					}
-					if(curr > maxSpecific){
+					if (curr > maxSpecific) {
 						maxSpecific = curr;
 					}
 				}
 				int requiredBitwidthSpecific = KodkodModelValidatorConfiguration.calculateRequiredBitwidth(maxSpecific);
-				if(requiredBitwidthSpecific > bitwidth){
-					warning("The configured bitwidth is too small for the specific Integer value(s). Required bitwidth: " + requiredBitwidthSpecific + " or greater.");
+				if (requiredBitwidthSpecific > bitwidth) {
+					warning("The configured bitwidth is too small for the specific Integer value(s). Required bitwidth: "
+							+ requiredBitwidthSpecific + " or greater.");
 				}
 			}
-			
-			if(min != Integer.MIN_VALUE){
+
+			if (min != Integer.MIN_VALUE) {
 				int requiredBitwidthMin = KodkodModelValidatorConfiguration.calculateRequiredBitwidth(min);
-				
-				if(requiredBitwidthMin > bitwidth){
-					warning("The configured bitwidth is too small for the property Integer min value. Required bitwidth: " + requiredBitwidthMin + " or greater.");
+
+				if (requiredBitwidthMin > bitwidth) {
+					warning("The configured bitwidth is too small for the property Integer min value. Required bitwidth: "
+							+ requiredBitwidthMin + " or greater.");
 				}
 			}
-			if(max != Integer.MIN_VALUE){
+			if (max != Integer.MIN_VALUE) {
 				int requiredBitwidthMax = KodkodModelValidatorConfiguration.calculateRequiredBitwidth(max);
-				
-				if(requiredBitwidthMax > bitwidth){
-					warning("The configured bitwidth is too small for the property Integer max value. Required bitwidth: " + requiredBitwidthMax + " or greater.");
+
+				if (requiredBitwidthMax > bitwidth) {
+					warning("The configured bitwidth is too small for the property Integer max value. Required bitwidth: "
+							+ requiredBitwidthMax + " or greater.");
 				}
 			}
 		} else if (type.isString()) {
 			min = readSize(type.name() + PropertyEntry.stringValuesMin, Integer.MIN_VALUE, false);
 			max = readSize(type.name() + PropertyEntry.stringValuesMax, Integer.MIN_VALUE, false);
-			
+
 			defaultMin = DefaultConfigurationValues.stringMin;
 			defaultMax = DefaultConfigurationValues.stringMax;
 		} else if (type.isReal()) {
 			min = readSizeDouble(type.name() + PropertyEntry.realValuesMin, Integer.MIN_VALUE, true);
 			max = readSizeDouble(type.name() + PropertyEntry.realValuesMax, Integer.MIN_VALUE, true);
-			
+
 			defaultMin = (int) DefaultConfigurationValues.realMin;
 			defaultMax = (int) DefaultConfigurationValues.realMax;
-		}
-		else {
+		} else {
 			error("Unknown Configurable Type");
 			return;
 		}
-		
-		if(min != Integer.MIN_VALUE || max != Integer.MIN_VALUE){
-			if(min == Integer.MIN_VALUE){
+
+		if (min != Integer.MIN_VALUE || max != Integer.MIN_VALUE) {
+			if (min == Integer.MIN_VALUE) {
 				min = defaultMin;
 			}
-			if(max == Integer.MIN_VALUE){
+			if (max == Integer.MIN_VALUE) {
 				max = defaultMax;
 			}
-			
+
 			try {
 				List<Range> ranges = new ArrayList<Range>();
 				ranges.add(new Range(min, max));
@@ -271,7 +275,7 @@ public class PropertyConfigurationVisitor extends SimpleVisitor {
 		}
 
 		String cyclefreenessState = config.getString(PropertyEntry.aggregationcyclefreeness,
-				DefaultConfigurationValues.AGGREGATIONCYCLEFREENESS ? "on" : "off" );
+				DefaultConfigurationValues.AGGREGATIONCYCLEFREENESS ? "on" : "off");
 		if (cyclefreenessState.equals("on")) {
 			configurator.setAggregationCycleFreeness(true);
 		} else {
@@ -282,7 +286,7 @@ public class PropertyConfigurationVisitor extends SimpleVisitor {
 				configurator.setAggregationCycleFreeness(DefaultConfigurationValues.AGGREGATIONCYCLEFREENESS);
 			}
 		}
-		
+
 		String forbiddensharingState = config.getString(PropertyEntry.forbiddensharing,
 				DefaultConfigurationValues.FORBIDDENSHARING ? "on" : "off");
 		if (forbiddensharingState.equals("on")) {
@@ -308,12 +312,13 @@ public class PropertyConfigurationVisitor extends SimpleVisitor {
 			configurator = new ClassConfigurator();
 		}
 
-		if(values.size() > 0){
+		if (values.size() > 0) {
 			configurator.setSpecificValues(values);
 		}
 		int min = readSize(clazz.name() + PropertyEntry.objMin, DefaultConfigurationValues.objectsPerClassMin, false);
 		classMinObjects.put(clazz.name(), min);
-		configurator.setLimits(min, readSize(clazz.name() + PropertyEntry.objMax, DefaultConfigurationValues.objectsPerClassMax, false));
+		configurator.setLimits(min,
+				readSize(clazz.name() + PropertyEntry.objMax, DefaultConfigurationValues.objectsPerClassMax, false));
 		clazz.setConfigurator(configurator);
 		return configurator;
 	}
@@ -321,15 +326,22 @@ public class PropertyConfigurationVisitor extends SimpleVisitor {
 	/**
 	 * Sets the configurator for an attribute.
 	 */
-	protected void setAttributeConfigurator(IAttribute attribute, String className, List<String[]> specificValues, Set<String> domainValues) {
+	protected void setAttributeConfigurator(IAttribute attribute, String className, List<String[]> specificValues,
+			Set<String> domainValues) {
 		String searchName = className + "_" + attribute.name();
 		AttributeConfigurator configurator = new AttributeConfigurator(attribute);
 		configurator.setSpecificValues(specificValues);
 		configurator.setDomainValues(domainValues);
-		configurator.setLimits(readSize(searchName + PropertyEntry.attributeDefValuesMin, DefaultConfigurationValues.attributesPerClassMin, false),
-				readSize(searchName + PropertyEntry.attributeDefValuesMax, DefaultConfigurationValues.attributesPerClassMax, false));
-		configurator.setCollectionSize(readSize(searchName + PropertyEntry.attributeColSizeMin, DefaultConfigurationValues.attributesColSizeMin, false),
-				readSize(searchName + PropertyEntry.attributeColSizeMax, DefaultConfigurationValues.attributesColSizeMax, false));
+		configurator.setLimits(
+				readSize(searchName + PropertyEntry.attributeDefValuesMin,
+						DefaultConfigurationValues.attributesPerClassMin, false),
+				readSize(searchName + PropertyEntry.attributeDefValuesMax,
+						DefaultConfigurationValues.attributesPerClassMax, false));
+		configurator.setCollectionSize(
+				readSize(searchName + PropertyEntry.attributeColSizeMin,
+						DefaultConfigurationValues.attributesColSizeMin, false),
+				readSize(searchName + PropertyEntry.attributeColSizeMax,
+						DefaultConfigurationValues.attributesColSizeMax, false));
 		attribute.setConfigurator(configurator);
 	}
 
@@ -338,11 +350,14 @@ public class PropertyConfigurationVisitor extends SimpleVisitor {
 	 */
 	protected void setAssociationConfigurator(IAssociation association, List<String[]> values) {
 		AssociationConfigurator configurator = new AssociationConfigurator();
-		if(values.size() > 0){
+		if (values.size() > 0) {
 			configurator.setSpecificValues(values);
 		}
-		configurator.setLimits(readSize(association.name() + PropertyEntry.linksMin, DefaultConfigurationValues.linksPerAssocMin, false),
-				readSize(association.name() + PropertyEntry.linksMax, DefaultConfigurationValues.linksPerAssocMax, false));
+		configurator.setLimits(
+				readSize(association.name() + PropertyEntry.linksMin, DefaultConfigurationValues.linksPerAssocMin,
+						false),
+				readSize(association.name() + PropertyEntry.linksMax, DefaultConfigurationValues.linksPerAssocMax,
+						false));
 		association.setConfigurator(configurator);
 	}
 
@@ -364,7 +379,7 @@ public class PropertyConfigurationVisitor extends SimpleVisitor {
 		}
 		return limit;
 	}
-	
+
 	private int readSizeDouble(String name, int errorValue, boolean allowNegative) {
 		int limit = 0;
 		try {
@@ -388,7 +403,7 @@ public class PropertyConfigurationVisitor extends SimpleVisitor {
 		List<String[]> values = getTypeSpecificValues(type);
 		for (String element : readSingleElements(typeName)) {
 			element = element.trim().replaceAll("'", "");
-			if(!element.isEmpty()){
+			if (!element.isEmpty()) {
 				values.add(new String[] { element });
 			}
 		}
@@ -466,19 +481,20 @@ public class PropertyConfigurationVisitor extends SimpleVisitor {
 				try {
 					int nbr = Integer.parseInt(number);
 					if (!(nbr > classSpecificValues.get(className).size() && nbr <= classMinObjects.get(className))) {
-						complexElementError(name,input, element, className);
+						complexElementError(name, input, element, className);
 					}
 				} catch (NumberFormatException e) {
-					complexElementError(name,input, element, className);
+					complexElementError(name, input, element, className);
 				}
 			} else {
-				complexElementError(name,input, element, className);
+				complexElementError(name, input, element, className);
 			}
 		}
 	}
 
 	private void complexElementError(String name, String input, String element, String className) {
-		String error = name + ": (" + input + ") at element " + element + ": " + LogMessages.complexElementConfigError(className);
+		String error = name + ": (" + input + ") at element " + element + ": "
+				+ LogMessages.complexElementConfigError(className);
 		error(error);
 	}
 
@@ -539,7 +555,8 @@ public class PropertyConfigurationVisitor extends SimpleVisitor {
 	/**
 	 * Reads the specific values for an attribute.
 	 */
-	private void readSpecificAttributeValues(IAttribute attribute, IClass owner, List<String[]> specificValues, Set<String[]> typeSpecificValues) {
+	private void readSpecificAttributeValues(IAttribute attribute, IClass owner, List<String[]> specificValues,
+			Set<String[]> typeSpecificValues) {
 		Map<IClass, List<String>> specificClassValues = getClassSpecificValues(owner);
 
 		for (IClass clazz : specificClassValues.keySet()) {
@@ -592,8 +609,10 @@ public class PropertyConfigurationVisitor extends SimpleVisitor {
 			return element;
 		}
 
-		if (type.isCollection()) {
+		if (type.isSet()) {
 			type = ((SetType) type).elemType();
+		} else if (type.isSequence()) {
+			type = ((SequenceType) type).elemType();
 		}
 
 		if (type.isString()) {
@@ -601,21 +620,21 @@ public class PropertyConfigurationVisitor extends SimpleVisitor {
 		}
 		return element;
 	}
-	
-	public boolean containErrors(){
+
+	public boolean containErrors() {
 		return !errors.isEmpty();
 	}
-	
-	private void warning(String warning){
-		if(warnings.isEmpty()){
+
+	private void warning(String warning) {
+		if (warnings.isEmpty()) {
 			warningsOut.write("Warnings during the configuration:");
 		}
 		warningsOut.write("\n" + warning);
 		warnings.add(warning);
 		LOG.warn(warning);
 	}
-	
-	private void error(String error){
+
+	private void error(String error) {
 		errors.add(error);
 		LOG.error(error);
 	}

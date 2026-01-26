@@ -14,6 +14,7 @@ import org.tzi.kodkod.ocl.operation.ClassOperationGroup;
 import org.tzi.kodkod.ocl.operation.CollectionConstructorGroup;
 import org.tzi.kodkod.ocl.operation.ConditionalOperationGroup;
 import org.tzi.kodkod.ocl.operation.IntegerOperationGroup;
+import org.tzi.kodkod.ocl.operation.SequenceOperationGroup;
 import org.tzi.kodkod.ocl.operation.SetOperationGroup;
 import org.tzi.kodkod.ocl.operation.VariableOperationGroup;
 import org.tzi.use.kodkod.transform.ModelTransformator;
@@ -34,7 +35,7 @@ import com.google.common.eventbus.Subscribe;
  * 
  */
 public enum PluginModelFactory implements ChangeListener {
-	
+
 	INSTANCE;
 
 	private WeakReference<Session> session = new WeakReference<Session>(null);
@@ -87,43 +88,44 @@ public enum PluginModelFactory implements ChangeListener {
 		registry.registerOperationGroup(new AnyOperationGroup(tf, true));
 		registry.registerOperationGroup(new ConditionalOperationGroup(tf));
 		registry.registerOperationGroup(new SetOperationGroup(tf));
+		registry.registerOperationGroup(new SequenceOperationGroup(tf));
 		registry.registerOperationGroup(new CollectionConstructorGroup(tf));
 	}
-	
-	public void registerForSession(Session s){
-		if(session.get() == null || s != session.get()){
+
+	public void registerForSession(Session s) {
+		if (session.get() == null || s != session.get()) {
 			// session has changed since last register
-			if(session.get() != null){
+			if (session.get() != null) {
 				session.get().removeChangeListener(this);
 			}
 			s.addChangeListener(this);
 			session = new WeakReference<Session>(s);
 		}
-		if(system.get() == null || s.system() != system.get()){
+		if (system.get() == null || s.system() != system.get()) {
 			// system has changed since last register
-			if(system.get() != null){
-				system.get().getEventBus().unregister(this); 
+			if (system.get() != null) {
+				system.get().getEventBus().unregister(this);
 			}
 			s.system().getEventBus().register(this);
 			system = new WeakReference<MSystem>(s.system());
 		}
 	}
-	
+
 	@Override
 	public void stateChanged(ChangeEvent e) {
-		if(((Session) e.getSource()).hasSystem() && ((Session) e.getSource()).system() != system.get()){
+		if (((Session) e.getSource()).hasSystem() && ((Session) e.getSource()).system() != system.get()) {
 			reTransform = true;
 		}
 	}
-	
+
 	@Subscribe
-	public void onClassInvariantLoaded(ClassInvariantsLoadedEvent ev){
+	public void onClassInvariantLoaded(ClassInvariantsLoadedEvent ev) {
 		reTransform = true;
 	}
-	
+
 	@Subscribe
-	public void onClassInvariantUnloaded(ClassInvariantsUnloadedEvent ev){
+	public void onClassInvariantUnloaded(ClassInvariantsUnloadedEvent ev) {
 		reTransform = true;
 	}
-	
+
 }

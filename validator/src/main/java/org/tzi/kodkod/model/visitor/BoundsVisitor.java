@@ -41,25 +41,38 @@ public class BoundsVisitor extends SimpleVisitor {
 	public void visitClass(IClass clazz) {
 		bounds.bound(clazz.relation(), clazz.lowerBound(tupleFactory), clazz.upperBound(tupleFactory));
 		if (clazz.existsInheritance()) {
-			bounds.bound(clazz.inheritanceRelation(), clazz.inheritanceLowerBound(tupleFactory), clazz.inheritanceUpperBound(tupleFactory));
+			bounds.bound(clazz.inheritanceRelation(), clazz.inheritanceLowerBound(tupleFactory),
+					clazz.inheritanceUpperBound(tupleFactory));
 		}
 		super.visitClass(clazz);
 	}
 
 	@Override
 	public void visitAttribute(IAttribute attribute) {
-		if(attribute instanceof DerivedAttribute){
+		if (attribute instanceof DerivedAttribute) {
 			return;
 		}
-		bounds.bound(attribute.relation(), attribute.lowerBound(tupleFactory), attribute.upperBound(tupleFactory));
+		TupleSet lower = attribute.lowerBound(tupleFactory);
+		TupleSet upper = attribute.upperBound(tupleFactory);
+
+		System.out.println("\n### BoundsVisitor.visitAttribute: " + attribute.name() + " ###");
+		System.out.println("Relation: " + attribute.relation());
+		System.out.println("LowerBound size: " + lower.size());
+		System.out.println("LowerBound: " + lower);
+		System.out.println("UpperBound size: " + upper.size());
+		System.out.println("UpperBound: " + upper);
+		System.out.println("###################################################\n");
+
+		bounds.bound(attribute.relation(), lower, upper);
 	}
 
 	@Override
 	public void visitAssociation(IAssociation association) {
-		if(association instanceof DerivedAssociation){
+		if (association instanceof DerivedAssociation) {
 			return;
 		}
-		bounds.bound(association.relation(), association.lowerBound(tupleFactory), association.upperBound(tupleFactory));
+		bounds.bound(association.relation(), association.lowerBound(tupleFactory),
+				association.upperBound(tupleFactory));
 	}
 
 	@Override
@@ -109,5 +122,12 @@ public class BoundsVisitor extends SimpleVisitor {
 			tuple = iterator.next();
 			bounds.boundExactly((Integer) tuple.atom(0), tupleFactory.setOf(tuple));
 		}
+	}
+
+	@Override
+	public void visitSequenceType(org.tzi.kodkod.model.type.SequenceType sequenceType) {
+		// Bind bounds for the sequence relation (index -> value)
+		bounds.bound(sequenceType.relation(), sequenceType.lowerBound(tupleFactory),
+				sequenceType.upperBound(tupleFactory));
 	}
 }

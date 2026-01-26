@@ -56,10 +56,11 @@ public class PrimitiveTypeFactory extends TypeFactory {
 
 	@Override
 	public Type sequenceType(Type elemType) {
-		LOG.warn(LogMessages.unsupportedCollectionWarning("sequences"));
-		return setType(elemType);
+
+		IntegerType indexType = (IntegerType) integerType();
+		return new SequenceType(elemType, indexType);
 	}
-	
+
 	@Override
 	public Type collectionType(Type elemType) {
 		LOG.warn(LogMessages.unsupportedCollectionWarning("type Collection"));

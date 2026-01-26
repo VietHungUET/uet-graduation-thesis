@@ -57,11 +57,29 @@ public class ValueConverter {
 
 		Set<String> values = new HashSet<String>();
 
-		for (Value val : collectionValue.collection()) {
-			if (val.isCollection()) {
-				LOG.error(LogMessages.valueConversionNestedCollections);
-			} else {
-				values.addAll(convert(val));
+		// Check if this is a sequence type
+		if (value.type().isTypeOfSequence()) {
+			// For sequences, encode as (index, value) pairs
+			int index = 1;
+			for (Value val : collectionValue.collection()) {
+				if (val.isCollection()) {
+					LOG.error(LogMessages.valueConversionNestedCollections);
+				} else {
+					Set<String> convertedValues = convert(val);
+					for (String convertedValue : convertedValues) {
+						values.add("(" + index + "," + convertedValue + ")");
+					}
+					index++;
+				}
+			}
+		} else {
+			// For other collections (sets, bags), use original logic
+			for (Value val : collectionValue.collection()) {
+				if (val.isCollection()) {
+					LOG.error(LogMessages.valueConversionNestedCollections);
+				} else {
+					values.addAll(convert(val));
+				}
 			}
 		}
 
