@@ -50,11 +50,13 @@ public class AssociationConfigurator extends Configurator<IAssociation> {
 			atoms = new ArrayList<String>();
 			for (int i = 0; i < arity; i++) {
 				/*
-				 * FIXME Automatic Diagram Extraction and properties file create different models.
+				 * FIXME Automatic Diagram Extraction and properties file create different
+				 * models.
 				 * One adds the class name for links and the other does not. There might also be
 				 * further clashes regarding attribute definitions and so on.
 				 */
-				if(tupleFactory.universe().contains(allAssociationEnds.get(i).associatedClass().name() + "_" + specific[i])){
+				if (tupleFactory.universe()
+						.contains(allAssociationEnds.get(i).associatedClass().name() + "_" + specific[i])) {
 					atoms.add(allAssociationEnds.get(i).associatedClass().name() + "_" + specific[i]);
 				} else {
 					atoms.add(specific[i]);
@@ -73,12 +75,12 @@ public class AssociationConfigurator extends Configurator<IAssociation> {
 		boolean hasZeroOneEnd = false;
 		TupleSet current;
 		IClass associationClass = association.associationClass();
-		
+
 		for (IAssociationEnd associationEnd : association.associationEnds()) {
 			current = tupleFactory.noneOf(1);
 			current.addAll(getAssociatedClassUpperBound(tupleFactory, associationEnd.associatedClass()));
 			if (associationEnd.multiplicity().isZeroOne() && association.isBinaryAssociation()) {
-				if(associationClass == null){
+				if (associationClass == null) {
 					current.add(tupleFactory.tuple(TypeConstants.UNDEFINED));
 				}
 				hasZeroOneEnd = true;
@@ -89,10 +91,10 @@ public class AssociationConfigurator extends Configurator<IAssociation> {
 				upper = upper.product(current);
 			}
 		}
-		
+
 		// remove possible all-null tuple [Undefined, Undefined, ...]
 		Tuple t = tupleFactory.tuple(TypeConstants.UNDEFINED);
-		for(int i = 1; i < upper.arity(); i++){
+		for (int i = 1; i < upper.arity(); i++) {
 			t = t.product(tupleFactory.tuple(TypeConstants.UNDEFINED));
 		}
 		upper.remove(t);
@@ -100,7 +102,7 @@ public class AssociationConfigurator extends Configurator<IAssociation> {
 		if (associationClass != null) {
 			TupleSet associationClassTuples = associationClass.upperBound(tupleFactory);
 			upper = associationClassTuples.product(upper);
-			
+
 			/*
 			 * create undefined tuples for objects linked with 0..1 association
 			 * ends so that the navigation explicitly results in Undefined
@@ -110,25 +112,25 @@ public class AssociationConfigurator extends Configurator<IAssociation> {
 				TupleSet assocClause;
 				final TupleSet undefinedTupleSet = tupleFactory.noneOf(1);
 				undefinedTupleSet.add(tupleFactory.tuple(TypeConstants.UNDEFINED));
-				
+
 				for (IAssociationEnd associationEnd : association.associationEnds()) {
-					if(associationEnd.multiplicity().isZeroOne()){
+					if (associationEnd.multiplicity().isZeroOne()) {
 						rolepositionInTuple++;
 						continue;
 					}
-					
+
 					assocClause = undefinedTupleSet;
 
 					// index 0 is the linkobject itself
-					for(int i = 1; i < upper.arity(); i++) {
-						if(i == rolepositionInTuple){
-							assocClause = assocClause.product(getAssociatedClassUpperBound(tupleFactory, associationEnd.associatedClass()));
-						}
-						else {
+					for (int i = 1; i < upper.arity(); i++) {
+						if (i == rolepositionInTuple) {
+							assocClause = assocClause.product(
+									getAssociatedClassUpperBound(tupleFactory, associationEnd.associatedClass()));
+						} else {
 							assocClause = assocClause.product(undefinedTupleSet);
 						}
 					}
-					
+
 					upper.addAll(assocClause);
 					rolepositionInTuple++;
 				}

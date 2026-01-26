@@ -25,18 +25,28 @@ public class AttributeStrategy extends ElementStrategy {
 		super(sApi, objectStates);
 		this.attributeName = attributeName;
 	}
-	
+
 	@Override
 	public void createElement(Tuple currentTuple) throws UseApiException {
-		//TODO collection typed attributes are not supported 100%
-		
+		// TODO collection typed attributes are not supported 100%
+
 		MObjectState mObjectState = objectStates.get(currentTuple.atom(0));
 
 		MAttribute mAttribute = findAttribute(mObjectState);
 
 		if (mAttribute != null && !mAttribute.isDerived()) {
-			Object atom = currentTuple.atom(1);
 			Type attributeType = mAttribute.type();
+			Object atom;
+
+			// Sequence uses ternary relation: (object, index, value)
+			// Need to extract value from atom(2) instead of atom(1)
+			if (attributeType.isKindOfSequence(Type.VoidHandling.INCLUDE_VOID)) {
+				// For Sequence: atom(0)=object, atom(1)=index, atom(2)=value
+				atom = currentTuple.atom(2);
+			} else {
+				// For Set and primitive types: atom(0)=object, atom(1)=value
+				atom = currentTuple.atom(1);
+			}
 
 			ValueCreator valueCreator = new ValueCreator(mModel, objectStates, mAttribute, mObjectState);
 			Value newVal = valueCreator.create(attributeType, atom);

@@ -13,6 +13,7 @@ import org.tzi.kodkod.model.iface.IAttribute;
 import org.tzi.kodkod.model.iface.IClass;
 import org.tzi.kodkod.model.type.IntegerType;
 import org.tzi.kodkod.model.type.ObjectType;
+import org.tzi.kodkod.model.type.SequenceType;
 import org.tzi.kodkod.model.type.SetType;
 import org.tzi.kodkod.model.type.Type;
 import org.tzi.kodkod.model.type.TypeAtoms;
@@ -62,33 +63,66 @@ public class AttributeConfigurator extends Configurator<IAttribute> {
 	@Override
 	public TupleSet lowerBound(IAttribute attribute, int arity, TupleFactory tupleFactory) {
 		specified = tupleFactory.noneOf(1);
-		TupleSet lower = tupleFactory.noneOf(2);
-
 		Type type = attribute.type();
-		String object;
-		for (String[] specific : specificValues) {
-			object = specific[0];
-			for (int i = 1; i < specific.length; i++) {
-				if ((type.isInteger() || type.isIntegerCollection())
-						&& !(specific[i].equals(TypeConstants.UNDEFINED) || specific[i].equals(TypeConstants.UNDEFINED_SET))) {
-					lower.add(tupleFactory.tuple(object, Integer.valueOf(specific[i])));
-				} 
-				else if(type.isObjectType() || type.isEnum()){
-					lower.add(tupleFactory.tuple(object, specific[i]));
+
+		// Sequence uses ternary relation (object, index, value)
+		if (type.isSequence()) {
+			TupleSet lower = tupleFactory.noneOf(3);
+			SequenceType seqType = (SequenceType) type;
+			Type elemType = seqType.elemType();
+
+			String object;
+			for (String[] specific : specificValues) {
+				object = specific[0];
+				// Generate sequence tuples with auto-incremented indices
+				// specific[1], specific[2], ... are the sequence values
+				for (int i = 1; i < specific.length; i++) {
+					int index = i - 1; // Start from index 0
+					String valueStr = specific[i];
+
+					if (!(valueStr.equals(TypeConstants.UNDEFINED) || valueStr.equals(TypeConstants.UNDEFINED_SET))) {
+						Object value;
+						if (elemType.isInteger()) {
+							value = Integer.valueOf(valueStr);
+						} else if (elemType.isObjectType() || elemType.isEnum()) {
+							value = valueStr;
+						} else {
+							value = getValue(elemType, valueStr);
+						}
+						lower.add(tupleFactory.tuple(object, index, value));
+					}
 				}
-				
-				else {
-					if (type.isCollection()) {
-						type = ((SetType) type).elemType();
+				specified.add(tupleFactory.tuple(object));
+			}
+			return lower;
+		}
+		// Original code for Set and primitive types
+		else {
+			TupleSet lower = tupleFactory.noneOf(2);
+			String object;
+			for (String[] specific : specificValues) {
+				object = specific[0];
+				for (int i = 1; i < specific.length; i++) {
+					if ((type.isInteger() || type.isIntegerCollection())
+							&& !(specific[i].equals(TypeConstants.UNDEFINED)
+									|| specific[i].equals(TypeConstants.UNDEFINED_SET))) {
+						lower.add(tupleFactory.tuple(object, Integer.valueOf(specific[i])));
+					} else if (type.isObjectType() || type.isEnum()) {
+						lower.add(tupleFactory.tuple(object, specific[i]));
 					}
 
-					lower.add(tupleFactory.tuple(object, getValue(type, specific[i])));
-				}
-			}
-			specified.add(tupleFactory.tuple(object));
-		}
+					else {
+						if (type.isCollection()) {
+							type = ((SetType) type).elemType();
+						}
 
-		return lower;
+						lower.add(tupleFactory.tuple(object, getValue(type, specific[i])));
+					}
+				}
+				specified.add(tupleFactory.tuple(object));
+			}
+			return lower;
+		}
 	}
 
 	protected String getValue(Type type, String value) {
@@ -113,77 +147,129 @@ public class AttributeConfigurator extends Configurator<IAttribute> {
 		}
 		remaining.removeAll(specified);
 
-		TupleSet upper = tupleFactory.noneOf(2);
-		if (domainValues.isEmpty()) {
-			TupleSet typeUpperUndefined = tupleFactory.noneOf(1);
-			if(type.isObjectType() && ((ObjectType) type).clazz().existsInheritance()){
-				typeUpperUndefined.addAll(((ObjectType) type).clazz().inheritanceUpperBound(tupleFactory));
+		// Sequence uses ternary relation (object, index, value)
+		if (type.isSequence()) {
+			TupleSet upper = tupleFactory.noneOf(3);
+			SequenceType seqType = (SequenceType) type;
+			Type elemType = seqType.elemType();
+			Type indexType = seqType.indexType();
+
+			if (domainValues.isEmpty()) {
+				// Create upper bound for element type
+				TupleSet typeUpperUndefined = tupleFactory.noneOf(1);
+				if (elemType.isObjectType() && ((ObjectType) elemType).clazz().existsInheritance()) {
+					typeUpperUndefined.addAll(((ObjectType) elemType).clazz().inheritanceUpperBound(tupleFactory));
+				} else {
+					typeUpperUndefined.addAll(elemType.upperBound(tupleFactory));
+				}
+				typeUpperUndefined.add(tupleFactory.tuple(TypeConstants.UNDEFINED));
+
+				// Create upper bound for index type (Integer)
+				TupleSet indexUpperBound = tupleFactory.noneOf(1);
+				indexUpperBound.addAll(indexType.upperBound(tupleFactory));
+
+				// Create 3-way cartesian product: remaining × indexUpperBound ×
+				// typeUpperUndefined
+				TupleSet temp = remaining.product(indexUpperBound);
+				upper = temp.product(typeUpperUndefined);
 			} else {
-				typeUpperUndefined.addAll(type.upperBound(tupleFactory));
-			}
-			typeUpperUndefined.add(tupleFactory.tuple(TypeConstants.UNDEFINED));
-			if (type.isSet()) {
-				typeUpperUndefined.add(tupleFactory.tuple(TypeConstants.UNDEFINED_SET));
+				// Build domain from domainValues for element type
+				TupleSet domain = tupleFactory.noneOf(1);
+				for (String domainValue : domainValues) {
+					if (elemType.isInteger()) {
+						domain.add(tupleFactory.tuple(Integer.valueOf(domainValue)));
+					} else {
+						domain.add(tupleFactory.tuple(getValue(elemType, domainValue)));
+					}
+				}
+
+				// Create upper bound for index type
+				TupleSet indexUpperBound = tupleFactory.noneOf(1);
+				indexUpperBound.addAll(indexType.upperBound(tupleFactory));
+
+				// Create 3-way cartesian product: remaining × indexUpperBound × domain
+				TupleSet temp = remaining.product(indexUpperBound);
+				upper = temp.product(domain);
 			}
 
-			if(attribute.type().isInteger()){
-				IntegerType t = (IntegerType) attribute.type();
-				
-				final int lowerBound;
-				final int upperBound;
-				final boolean useMinMaxBounds;
-				if(!t.getConfigurator().getRanges().isEmpty()){
-					lowerBound = t.getConfigurator().getRanges().get(0).getLower();
-					upperBound = t.getConfigurator().getRanges().get(0).getUpper();
-					useMinMaxBounds = true;
-				} else {
-					lowerBound = Integer.MIN_VALUE;
-					upperBound = Integer.MIN_VALUE;
-					useMinMaxBounds = false;
-				}
-				final Collection<Integer> sValues = Collections2.transform(t.getConfigurator().getSpecificValues(), new Function<String[], Integer>() {
-					@Override
-					public Integer apply(String[] input) {
-						return Integer.valueOf(input[0]);
-					}
-				});
-				// filter values that are not defined in properties file
-				// e.g. literals from invariants
-				TupleSet rawInput = typeUpperUndefined;
-				typeUpperUndefined = tupleFactory.noneOf(1);
-				typeUpperUndefined.addAll(Collections2.filter(rawInput, new Predicate<Tuple>() {
-					@Override
-					public boolean apply(Tuple input) {
-						if(input.atom(0) instanceof Integer){
-							int n = (Integer) input.atom(0);
-							return (useMinMaxBounds && n >= lowerBound && n <= upperBound) || sValues.contains(n);
-						}
-						return true;
-					}
-				}));
-			}
-			
-			TupleSet remaining_objectsUpper = remaining.product(typeUpperUndefined);
-			upper = remaining_objectsUpper;
-		} else {
-			TupleSet domain = tupleFactory.noneOf(1);
-			for (String domainValue : domainValues) {
-				if (type.isInteger() || type.isIntegerCollection()) {
-					domain.add(tupleFactory.tuple(Integer.valueOf(domainValue)));
-				} else {
-					if (type.isCollection()) {
-						type = ((SetType) type).elemType();
-					}
-
-					domain.add(tupleFactory.tuple(getValue(type, domainValue)));
-				}
-			}
-			upper = remaining.product(domain);
+			upper.addAll(lowerBound(attribute, arity, tupleFactory));
+			return upper;
 		}
+		// Original code for Set and primitive types
+		else {
+			TupleSet upper = tupleFactory.noneOf(2);
+			if (domainValues.isEmpty()) {
+				TupleSet typeUpperUndefined = tupleFactory.noneOf(1);
+				if (type.isObjectType() && ((ObjectType) type).clazz().existsInheritance()) {
+					typeUpperUndefined.addAll(((ObjectType) type).clazz().inheritanceUpperBound(tupleFactory));
+				} else {
+					typeUpperUndefined.addAll(type.upperBound(tupleFactory));
+				}
+				typeUpperUndefined.add(tupleFactory.tuple(TypeConstants.UNDEFINED));
+				if (type.isSet()) {
+					typeUpperUndefined.add(tupleFactory.tuple(TypeConstants.UNDEFINED_SET));
+				}
 
-		upper.addAll(lowerBound(attribute, arity, tupleFactory));
+				if (attribute.type().isInteger()) {
+					IntegerType t = (IntegerType) attribute.type();
 
-		return upper;
+					final int lowerBound;
+					final int upperBound;
+					final boolean useMinMaxBounds;
+					if (!t.getConfigurator().getRanges().isEmpty()) {
+						lowerBound = t.getConfigurator().getRanges().get(0).getLower();
+						upperBound = t.getConfigurator().getRanges().get(0).getUpper();
+						useMinMaxBounds = true;
+					} else {
+						lowerBound = Integer.MIN_VALUE;
+						upperBound = Integer.MIN_VALUE;
+						useMinMaxBounds = false;
+					}
+					final Collection<Integer> sValues = Collections2.transform(t.getConfigurator().getSpecificValues(),
+							new Function<String[], Integer>() {
+								@Override
+								public Integer apply(String[] input) {
+									return Integer.valueOf(input[0]);
+								}
+							});
+					// filter values that are not defined in properties file
+					// e.g. literals from invariants
+					TupleSet rawInput = typeUpperUndefined;
+					typeUpperUndefined = tupleFactory.noneOf(1);
+					typeUpperUndefined.addAll(Collections2.filter(rawInput, new Predicate<Tuple>() {
+						@Override
+						public boolean apply(Tuple input) {
+							if (input.atom(0) instanceof Integer) {
+								int n = (Integer) input.atom(0);
+								return (useMinMaxBounds && n >= lowerBound && n <= upperBound) || sValues.contains(n);
+							}
+							return true;
+						}
+					}));
+				}
+
+				TupleSet remaining_objectsUpper = remaining.product(typeUpperUndefined);
+				upper = remaining_objectsUpper;
+			} else {
+				TupleSet domain = tupleFactory.noneOf(1);
+				for (String domainValue : domainValues) {
+					if (type.isInteger() || type.isIntegerCollection()) {
+						domain.add(tupleFactory.tuple(Integer.valueOf(domainValue)));
+					} else {
+						if (type.isCollection()) {
+							type = ((SetType) type).elemType();
+						}
+
+						domain.add(tupleFactory.tuple(getValue(type, domainValue)));
+					}
+				}
+				upper = remaining.product(domain);
+			}
+
+			upper.addAll(lowerBound(attribute, arity, tupleFactory));
+
+			return upper;
+		}
 	}
 
 	@Override
@@ -298,11 +384,22 @@ public class AttributeConfigurator extends Configurator<IAttribute> {
 		} else {
 			numberOfDefinedObjects = relation.join(Expression.UNIV.difference(undefined)).count();
 		}
-		
+
 		Formula minFormula = Formula.TRUE;
 		if (allValuesDefined) {
 			if (attribute.type().isSet()) {
 				minFormula = undefinedSet.in(Expression.UNIV.join(relation)).not();
+			} else if (attribute.type().isSequence()) {
+				// For Sequence: UNIV.join(relation) has arity 2, need undefinedSet_2
+				Expression undefinedSet_2 = undefinedSet.product(Expression.UNIV);
+				Expression indexValuePairs = Expression.UNIV.join(relation);
+				// Constraint 1: The whole sequence is not undefined
+				Formula notUndefinedSequence = indexValuePairs.eq(undefinedSet_2).not();
+				// Constraint 2: Each element in the sequence is not Undefined
+				// valueColumn = UNIV.join(indexValuePairs) extracts the value column (arity 1)
+				Expression valueColumn = Expression.UNIV.join(indexValuePairs);
+				Formula noUndefinedValues = undefined.in(valueColumn).not();
+				minFormula = notUndefinedSequence.and(noUndefinedValues);
 			} else {
 				minFormula = undefined.in(Expression.UNIV.join(relation)).not();
 			}
@@ -334,7 +431,7 @@ public class AttributeConfigurator extends Configurator<IAttribute> {
 		Variable variable = Variable.unary("setAttrMult");
 
 		IntExpression numberOfValues = variable.join(attribute.relation()).count();
-		if(minCollectionSize > 0){
+		if (minCollectionSize > 0) {
 			constraints.add(numberOfValues.gte(IntConstant.constant(minCollectionSize)));
 		}
 		if (!unboundedCollectionSize) {
