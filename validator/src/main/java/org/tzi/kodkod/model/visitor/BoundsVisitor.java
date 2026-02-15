@@ -10,6 +10,7 @@ import kodkod.instance.Tuple;
 import kodkod.instance.TupleFactory;
 import kodkod.instance.TupleSet;
 
+import org.tzi.kodkod.decomp.SymbolicBoundsManager;
 import org.tzi.kodkod.model.iface.IAssociation;
 import org.tzi.kodkod.model.iface.IAttribute;
 import org.tzi.kodkod.model.iface.IClass;
@@ -24,6 +25,7 @@ import org.tzi.kodkod.model.type.TypeLiterals;
 
 /**
  * Visitor to bind the bounds to the relations.
+ * Can optionally populate SymbolicBoundsManager for decomposed solving.
  * 
  * @author Hendrik Reitmann
  */
@@ -31,10 +33,22 @@ public class BoundsVisitor extends SimpleVisitor {
 
 	private Bounds bounds;
 	private TupleFactory tupleFactory;
+	private SymbolicBoundsManager symbolicManager; // Optional: for decomposed solving
 
-	public BoundsVisitor(Bounds bounds, TupleFactory tupleFactory) {
+	/**
+	 * Constructor with SymbolicBoundsManager (for decomposed solving).
+	 */
+	public BoundsVisitor(Bounds bounds, TupleFactory tupleFactory, SymbolicBoundsManager symbolicManager) {
 		this.bounds = bounds;
 		this.tupleFactory = tupleFactory;
+		this.symbolicManager = symbolicManager;
+	}
+
+	/**
+	 * Constructor without SymbolicBoundsManager (backward compatible).
+	 */
+	public BoundsVisitor(Bounds bounds, TupleFactory tupleFactory) {
+		this(bounds, tupleFactory, null);
 	}
 
 	@Override
@@ -44,6 +58,14 @@ public class BoundsVisitor extends SimpleVisitor {
 			bounds.bound(clazz.inheritanceRelation(), clazz.inheritanceLowerBound(tupleFactory),
 					clazz.inheritanceUpperBound(tupleFactory));
 		}
+
+		// Register dependencies for decomposition
+		if (symbolicManager != null) {
+			for (Relation dep : clazz.getDependencies()) {
+				symbolicManager.registerDependency(clazz.relation(), dep);
+			}
+		}
+
 		super.visitClass(clazz);
 	}
 
@@ -64,6 +86,13 @@ public class BoundsVisitor extends SimpleVisitor {
 		System.out.println("###################################################\n");
 
 		bounds.bound(attribute.relation(), lower, upper);
+
+		// Register dependencies for decomposition
+		if (symbolicManager != null) {
+			for (Relation dep : attribute.getDependencies()) {
+				symbolicManager.registerDependency(attribute.relation(), dep);
+			}
+		}
 	}
 
 	@Override
@@ -73,6 +102,13 @@ public class BoundsVisitor extends SimpleVisitor {
 		}
 		bounds.bound(association.relation(), association.lowerBound(tupleFactory),
 				association.upperBound(tupleFactory));
+
+		// Register dependencies for decomposition
+		if (symbolicManager != null) {
+			for (Relation dep : association.getDependencies()) {
+				symbolicManager.registerDependency(association.relation(), dep);
+			}
+		}
 	}
 
 	@Override
