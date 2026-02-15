@@ -1,5 +1,8 @@
 package org.tzi.kodkod.model.impl;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 import org.apache.log4j.Logger;
 import org.tzi.kodkod.helper.PrintHelper;
 import org.tzi.kodkod.model.config.IConfigurator;
@@ -207,5 +210,24 @@ public class Attribute extends ModelElement implements IAttribute {
 	@Override
 	public void resetConfigurator() {
 		configurator = new AttributeConfigurator(this);
+	}
+
+	@Override
+	public Set<Relation> getDependencies() {
+		Set<Relation> deps = new java.util.LinkedHashSet<>();
+
+		// Attribute dependencies: Attribute depends on its owner class
+		// Example: Person_name → depends on Person
+		// Example: Book_title → depends on Book
+		if (owner != null) {
+			deps.add(owner.inheritanceOrRegularRelation());
+		}
+
+		// Type dependencies (for complex types)
+		// Note: For simple types (Integer, String, Boolean), no additional dependencies
+		// For object types (class references), those would be captured here
+		deps.addAll(type.dependencies());
+
+		return deps;
 	}
 }

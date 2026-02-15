@@ -104,23 +104,23 @@ public class Class extends ModelElement implements IClass {
 	public void addAssociation(IAssociation association) {
 		associations.add(association);
 	}
-	
+
 	@Override
 	public Collection<IAssociation> associations() {
 		return associations;
 	}
-	
+
 	@Override
 	public Collection<IAssociation> allAssociations() {
 		Set<IAssociation> res = new LinkedHashSet<IAssociation>();
 		res.addAll(associations());
-		
-		for(IClass cls : allParents()){
+
+		for (IClass cls : allParents()) {
 			res.addAll(cls.associations());
 		}
 		return res;
 	}
-	
+
 	@Override
 	public void addInvariant(IInvariant invariant) {
 		invariants.put(invariant.name(), invariant);
@@ -154,18 +154,18 @@ public class Class extends ModelElement implements IClass {
 	public Collection<IClass> parents() {
 		return parents;
 	}
-	
+
 	@Override
 	public Collection<IClass> allParents() {
 		Set<IClass> parents = new LinkedHashSet<IClass>();
 		parents.addAll(parents());
-		
-		for(IClass p : parents()){
+
+		for (IClass p : parents()) {
 			parents.addAll(p.allParents());
 		}
 		return parents;
 	}
-	
+
 	@Override
 	public void addChild(IClass child) {
 		children.add(child);
@@ -180,13 +180,13 @@ public class Class extends ModelElement implements IClass {
 	public Collection<IClass> allChildren() {
 		Set<IClass> children = new LinkedHashSet<IClass>();
 		children.addAll(children());
-		
-		for(IClass p : children()){
+
+		for (IClass p : children()) {
 			children.addAll(p.allChildren());
 		}
 		return children;
 	}
-	
+
 	@Override
 	public boolean isAbstract() {
 		return abstractC;
@@ -218,9 +218,9 @@ public class Class extends ModelElement implements IClass {
 		}
 		return inheritanceRelation;
 	}
-	
+
 	@Override
-	public Relation inheritanceOrRegularRelation(){
+	public Relation inheritanceOrRegularRelation() {
 		return existsInheritance() ? inheritanceRelation() : relation();
 	}
 
@@ -263,10 +263,10 @@ public class Class extends ModelElement implements IClass {
 		LOG.debug("Inheritance for " + name() + ": " + PrintHelper.prettyKodkod(formula));
 		return formula;
 	}
-	
+
 	private Formula forbiddingSharingDefinition() {
 		List<IAssociation> assocs = new ArrayList<IAssociation>();
-		
+
 		/*
 		 * Collect all associations that fulfill all of the following properties:
 		 * - binary
@@ -275,36 +275,39 @@ public class Class extends ModelElement implements IClass {
 		 * - part navigation points to this class
 		 */
 		for (IAssociation assoc : model.associations()) {
-			if(assoc.isBinaryAssociation() && assoc.associationClass() == null
+			if (assoc.isBinaryAssociation() && assoc.associationClass() == null
 					&& assoc.associationEnds().get(0).aggregationKind() == IAssociationEnd.COMPOSITION
-					&& assoc.associationEnds().get(1).associatedClass().equals(this)){
+					&& assoc.associationEnds().get(1).associatedClass().equals(this)) {
 				assocs.add(assoc);
 			}
 		}
-		
-		if(assocs.size() < 2){
+
+		if (assocs.size() < 2) {
 			return Formula.TRUE;
 		}
-		
+
 		/*
-		 * all self : (inh)Relation | (join( self, composition1 ) = undefined and ... and join( self, compositionN ) = undefined)
-		 *                              or (join( self, composition1 ) <> undefined and ... and join( self, compositionN ) = undefined)
-		 *                              ...
-		 *                              or (join( self, composition1 ) = undefined and ... and join( self, compositionN ) <> undefined)
+		 * all self : (inh)Relation | (join( self, composition1 ) = undefined and ...
+		 * and join( self, compositionN ) = undefined)
+		 * or (join( self, composition1 ) <> undefined and ... and join( self,
+		 * compositionN ) = undefined)
+		 * ...
+		 * or (join( self, composition1 ) = undefined and ... and join( self,
+		 * compositionN ) <> undefined)
 		 */
 		final Expression undefined = model.typeFactory().undefinedType().relation();
 		final Variable self = Variable.unary("self");
 		final Expression rel = inheritanceOrRegularRelation();
-		
+
 		Formula matrix = null;
-		
-		for(int i = 0; i < assocs.size()+1; i++){
+
+		for (int i = 0; i < assocs.size() + 1; i++) {
 			Formula current = Formula.TRUE;
-			for(int j = 0; j < assocs.size(); j++){
+			for (int j = 0; j < assocs.size(); j++) {
 				IAssociation assoc = assocs.get(j);
 				Expression joined = assoc.relation().join(self);
-				
-				if(i == j){
+
+				if (i == j) {
 					current = current.and(joined.eq(undefined).not());
 				} else {
 					current = current.and(joined.eq(undefined));
@@ -312,11 +315,11 @@ public class Class extends ModelElement implements IClass {
 			}
 			matrix = (matrix == null) ? current : matrix.or(current);
 		}
-		
+
 		Decls vars = self.oneOf(rel);
 		return matrix.forAll(vars);
 	}
-	
+
 	@Override
 	public ObjectType objectType() {
 		return objectType;
@@ -335,5 +338,18 @@ public class Class extends ModelElement implements IClass {
 	@Override
 	public void resetConfigurator() {
 		configurator = new ClassConfigurator();
+	}
+
+	@Override
+	public Set<Relation> getDependencies() {
+		Set<Relation> deps = new LinkedHashSet<>();
+
+		// Inheritance dependencies: Child class depends on parent classes
+		// Example: Student extends Person → Student depends on Person
+		for (IClass parent : parents) {
+			deps.add(parent.inheritanceOrRegularRelation());
+		}
+
+		return deps;
 	}
 }

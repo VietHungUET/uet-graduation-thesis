@@ -2,7 +2,9 @@ package org.tzi.kodkod.model.impl;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.log4j.Logger;
 import org.tzi.kodkod.helper.ConstraintHelper;
@@ -74,45 +76,46 @@ public class Association extends ModelElement implements IAssociation {
 	}
 
 	protected Formula cycleFreenessDefinitions() {
-		if(associationClass != null || !isBinaryAssociation()){
+		if (associationClass != null || !isBinaryAssociation()) {
 			return Formula.TRUE;
 		}
-		
+
 		IAssociationEnd aggregateEnd = null;
 		IAssociationEnd otherEnd = null;
-		for(IAssociationEnd ae : associationEnds){
-			if(ae.aggregationKind() != IAssociationEnd.REGULAR){
+		for (IAssociationEnd ae : associationEnds) {
+			if (ae.aggregationKind() != IAssociationEnd.REGULAR) {
 				aggregateEnd = ae;
 			} else {
 				otherEnd = ae;
 			}
 		}
-		
-		if(aggregateEnd == null || otherEnd == null){
+
+		if (aggregateEnd == null || otherEnd == null) {
 			return Formula.TRUE;
 		}
-		
+
 		if (aggregateEnd.associatedClass().equals(otherEnd.associatedClass())
 				|| aggregateEnd.associatedClass().allParents().contains(otherEnd.associatedClass())
 				|| aggregateEnd.associatedClass().allChildren().contains(otherEnd.associatedClass())) {
 			// construct simple constraint
 			Relation startRelation = aggregateEnd.associatedClass().inheritanceOrRegularRelation();
-			
+
 			// startRelation->forAll( s | s->closure( relation )->excludes( s ))
 			// all c : one startRelation { c \notin c->closure( c' | c'.relation ) }
-			
+
 			Variable y = Variable.unary("y");
 			Variable cls = Variable.unary("cls");
 			Expression closureExp = cls.join(relation());
-			
-			Expression generalClosure = y.in(closureExp).comprehension(cls.oneOf(startRelation).and(y.oneOf(startRelation))).closure();
+
+			Expression generalClosure = y.in(closureExp)
+					.comprehension(cls.oneOf(startRelation).and(y.oneOf(startRelation))).closure();
 			Variable start = Variable.unary("start");
 			Formula forAllExp = start.in(start.join(generalClosure)).not();
-			
-			return forAllExp.forAll( start.oneOf(startRelation) );
+
+			return forAllExp.forAll(start.oneOf(startRelation));
 		}
-		//TODO non-reflexive case(s)
-		
+		// TODO non-reflexive case(s)
+
 		return Formula.TRUE;
 	}
 
@@ -140,7 +143,8 @@ public class Association extends ModelElement implements IAssociation {
 				expression = expression.join(Expression.UNIV);
 			}
 
-			if (associationEnd.multiplicity() != null && associationEnd.multiplicity().isZeroOne() && isBinaryAssociation()
+			if (associationEnd.multiplicity() != null && associationEnd.multiplicity().isZeroOne()
+					&& isBinaryAssociation()
 					|| (associationEnd.equals(associationClass) && isBinaryAssociation())) {
 				formula = expression.in(associationEnd.associatedClass().inheritanceOrRegularRelation().union(
 						model.typeFactory().undefinedType().relation()));
@@ -153,7 +157,7 @@ public class Association extends ModelElement implements IAssociation {
 		}
 		return Formula.and(formulas);
 	}
-	
+
 	/**
 	 * Creates the formula for the multiplicity constraints.
 	 */
@@ -263,13 +267,13 @@ public class Association extends ModelElement implements IAssociation {
 		} else {
 			objects = createLinkedObjectsExpression(variables, index, true);
 		}
-		
+
 		if (isBinaryAssociation()) {
 			formula = objects.one();
 		} else {
 			formula = objects.lone();
 		}
-		
+
 		return formula;
 	}
 
@@ -296,7 +300,8 @@ public class Association extends ModelElement implements IAssociation {
 	/**
 	 * Returns an expression with the linked objects of an association end.
 	 */
-	private Expression createLinkedObjectsExpression(List<Variable> variables, int currentEndIndex, boolean univJoinRelation) {
+	private Expression createLinkedObjectsExpression(List<Variable> variables, int currentEndIndex,
+			boolean univJoinRelation) {
 		Expression linkedObjects = null;
 		for (int j = 0; j < currentEndIndex; j++) {
 			if (j == 0) {
@@ -350,7 +355,7 @@ public class Association extends ModelElement implements IAssociation {
 	public boolean isAssociationClass() {
 		return associationClass != null;
 	}
-	
+
 	@Override
 	public boolean isBinaryAssociation() {
 		return associationEnds.size() == 2;
@@ -369,5 +374,25 @@ public class Association extends ModelElement implements IAssociation {
 	@Override
 	public void resetConfigurator() {
 		configurator = new AssociationConfigurator();
+	}
+
+	@Override
+	public Set<Relation> getDependencies() {
+		Set<Relation> deps = new java.util.LinkedHashSet<>();
+
+		// Association dependencies: Association depends on all participating classes
+		// Example: RoomKeys between Room-Key → RoomKeys depends on {Room, Key}
+		// Example: Enrolls between Student-Course → Enrolls depends on {Student,
+		// Course}
+		for (IAssociationEnd end : associationEnds) {
+			deps.add(end.associatedClass().inheritanceOrRegularRelation());
+		}
+
+		// Association class dependency
+		if (associationClass != null) {
+			deps.add(associationClass.inheritanceOrRegularRelation());
+		}
+
+		return deps;
 	}
 }
