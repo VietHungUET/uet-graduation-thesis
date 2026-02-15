@@ -159,7 +159,7 @@ public abstract class Type implements IElement {
 	 * @return
 	 */
 	public Expression expression() {
-		if(isObjectType()){
+		if (isObjectType()) {
 			return ((ObjectType) this).clazz().inheritanceOrRegularRelation();
 		} else {
 			return relation();
@@ -205,4 +205,17 @@ public abstract class Type implements IElement {
 	 * @return
 	 */
 	public abstract TupleSet upperBound(TupleFactory tupleFactory);
+
+	/**
+	 * Returns structural dependencies for this type.
+	 * Used for decomposed solving dependency detection.
+	 * 
+	 * Default: empty set (for basic types like Integer, String, Boolean)
+	 * Override in ObjectType to return the class dependency
+	 * 
+	 * @return Set of relations this type depends on
+	 */
+	public java.util.Set<Relation> dependencies() {
+		return java.util.Collections.emptySet();
+	}
 }
