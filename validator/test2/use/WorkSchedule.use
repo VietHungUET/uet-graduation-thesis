@@ -1,0 +1,26 @@
+model WorkSchedule
+
+class Schedule
+attributes
+    date: String
+    tasks: Sequence(String)
+end
+
+constraints
+
+context Schedule
+inv MinimumTaskConstraint:
+    self.tasks->size() >= 2
+
+context Schedule
+inv MaximumTaskCapacity:
+    self.tasks->size() <= 4
+
+
+context Schedule
+inv MeetingMandatoryRequirement:
+    self.tasks->includes('Meeting')
+
+-- context Schedule
+-- inv MeetingNotHave:
+--     self.tasks->excludes('Meeting')

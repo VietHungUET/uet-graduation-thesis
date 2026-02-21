@@ -1,0 +1,107 @@
+--------------------------------------------------------------- ToDoApp
+model ToDoApp
+
+----------------------------------------------------------------- class User
+class User
+attributes
+  name : String -- key
+end
+
+----------------------------------------------------------------- class Task
+class Task
+attributes
+  title : String -- key
+  priority : Integer
+end
+
+--------------------------------------------------------------- class Project
+class Project
+attributes
+  name : String -- key
+  taskList : Sequence(Task)
+end
+
+--------------------------------------------------------- association Owns
+association Owns between
+  User[1] role owner
+  Project[0..*] role project
+end
+
+association Contains between
+  Project[1] role project
+  Task[0..*] role tasks ordered
+end
+
+---------------------------s--------------------------------- constraints
+constraints
+
+------------------------------------------------------------ User constraints
+-- context u:User inv nameNotEmpty:
+--   u.name <> '' and u.name <> oclUndefined(String)
+
+-- context u1:User inv uniqueUserName:
+--   User.allInstances->forAll(u2 | u1 <> u2 implies u1.name <> u2.name)
+
+
+----------------------------------------------------------- Task constraints
+-- context t:Task inv titleNotEmpty:
+--   t.title <> '' and t.title <> oclUndefined(String)
+
+-- context t1:Task inv titleIsUnique:
+--   Task.allInstances->forAll(t2 | t1 <> t2 implies t1.title <> t2.title)
+
+-- Mỗi Task phải có priority khác nhau
+context t1:Task inv uniquePriority:
+  Task.allInstances->forAll(t2 | t1 <> t2 implies t1.priority <> t2.priority)
+
+
+---------------------------------------------------------- Project constraints
+
+
+context p:Project inv firstTaskIsLowestPriority:
+  p.taskList->size() > 0 implies
+  p.taskList->first().priority = 
+     p.taskList->collect(t | t.priority)->min()
+
+-- 2. last(): Task cuối cùng phải có priority lớn nhất
+context p:Project inv lastTaskIsHighestPriority:
+  p.taskList->size() > 0 implies
+  p.taskList->last().priority = 
+     p.taskList->collect(t | t.priority)->max()
+
+-- -- 3. at(): Không được có task có priority âm
+-- context p:Project inv noNegativePriority:
+--   Set{1..p.taskList->size()}->forAll(i |
+--       p.taskList->at(i).priority >= 0
+--   )
+
+-- context p:Project inv noDuplicateTasks:
+--   Set{1..p.taskList->size()}->forAll(i |
+--     Set{1..p.taskList->size()}->forAll(j |
+--       i <> j implies
+--         p.taskList->at(i) <> p.taskList->at(j)
+--     )
+--   )
+
+
+-- -- 5. append(): Khi thêm task mới phải luôn tăng kích thước
+-- context p:Project inv appendIncreasesSize:
+--   p.taskList->append(Task.allInstances->any(true))
+--     ->size() = p.taskList->size() + 1
+
+-- -- 6. prepend(): Khi thêm đầu danh sách cũng tăng size
+-- context p:Project inv prependIncreasesSize:
+--   p.taskList->prepend(Task.allInstances->any(true))
+--     ->size() = p.taskList->size() + 1
+
+-- -- 7. insertAt(): Khi chèn vào giữa cũng tăng size
+-- context p:Project inv insertAtValidPosition:
+--   p.taskList->size() > 0 implies
+--   p.taskList->insertAt(1, Task.allInstances->any(true))
+--     ->size() = p.taskList->size() + 1
+
+-- -- 8. subSequence(): Lấy một đoạn con phải có size nhỏ hơn hoặc bằng gốc
+-- context p:Project inv subsequenceNotLonger:
+--   p.taskList->size() >= 2 implies
+--   p.taskList->subSequence(1, 2)->size() <= p.taskList->size()
+

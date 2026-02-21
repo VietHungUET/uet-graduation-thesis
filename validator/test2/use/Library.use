@@ -1,0 +1,25 @@
+model Library
+class Library
+attributes
+  name : String
+end
+class Book
+attributes
+  title : String
+  tags : Sequence(String)
+end
+class Author
+attributes
+  name : String
+end
+association contains between
+  Library[0..*] role library
+  Book[0..*] role books
+end
+association writtenBy between
+  Book[1..*] role books
+  Author[1..*] role authors
+end
+constraints
+context Book inv tagsNotEmpty:
+  self.tags->size() >= 2

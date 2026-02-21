@@ -1,0 +1,94 @@
+model eShop
+
+-- Classes
+class Customer
+attributes
+  name : Integer
+operations
+  newCustomer(name : Integer, p : Portal) : Customer
+end
+
+class GoldCustomer < Customer
+end
+
+class Portal
+attributes
+  url : String
+  name : String
+operations
+  removeGoldCategory(c : Customer)
+end
+
+class Sale
+attributes
+  id : Integer
+  paid : Boolean
+  amount : Integer
+operations
+  addSaleLine(p : Product, quantity : Integer) : SaleLine
+end
+
+class SaleLine
+attributes
+  quantity : Integer
+end
+
+class Product
+attributes
+  price : Integer
+  stock : Integer
+end
+
+-- Associations
+association Purchases between
+  Customer[1] role purchaser
+  Sale[0..*] role sale 
+end
+
+association IncludedIn between
+  Sale[1] role sale
+  SaleLine[1..*] role lines 
+end
+
+association ProductSaleLines between
+  Product[1] role product
+  SaleLine[0..*] role saleLines
+end
+
+association RegisteredIn between
+  Portal[1] role portal
+  Customer[0..*] role customers
+end
+
+-- Constraints
+constraints
+
+-- Product must have minimum stock of 5
+context Product inv minStock:
+  self.stock >= 5
+
+-- GoldCustomer must have total paid sales amount > 10
+context GoldCustomer inv salesAmount:
+  self.sale->select(s | s.paid).amount->sum() > 10
+
+-- removeGoldCategory precondition: customer must be GoldCustomer with no sales
+context Portal::removeGoldCategory(c : Customer)
+  pre: c.oclIsTypeOf(GoldCustomer) and c.sale->isEmpty()
+  post: not c.oclIsTypeOf(GoldCustomer)
+
+-- newCustomer creates a new customer with given name and portal
+context Customer::newCustomer(name : Integer, p : Portal) : Customer
+  pre: true
+  post: result.oclIsNew() and 
+        result.name = name and 
+        result.portal = p
+
+-- addSaleLine adds a sale line and updates product stock and sale amount
+context Sale::addSaleLine(p : Product, quantity : Integer) : SaleLine
+  pre: p.stock > 0
+  post: result.oclIsNew() and 
+        result.sale = self and 
+        result.product = p and 
+        result.quantity = quantity and
+        p.stock = p.stock@pre - quantity and 
+        self.amount = self.amount@pre + quantity * p.price

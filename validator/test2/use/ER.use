@@ -1,0 +1,80 @@
+model ER
+
+-- Classes
+class Schema
+end
+
+class Entity  
+attributes
+  name : String
+end
+
+class Relship
+attributes
+  name : String
+end
+
+class RelshipEnd
+attributes
+  name : String
+end
+
+class Attribute
+attributes
+  name : String
+  isKey : Boolean
+end
+
+-- Associations
+association entityAttributes between
+  Entity[1] role entity
+  Attribute[1..*] role attrs
+end
+
+association entities between
+  Schema[1] role schema
+  Entity[1..*] role entities
+end
+
+association relationships between
+  Schema[1] role schema
+  Relship[0..*] role relships
+end
+
+association relationshipEnds between
+  Relship[1] role relship
+  RelshipEnd[2..*] role ends
+end
+
+association typeOf between
+  Entity[1] role type
+  RelshipEnd[0..*] role ends
+end
+
+-- OCL Constraints
+constraints
+
+-- ERN: Entity và Relship names phải khác nhau
+context Schema inv ERN:
+  self.entities->forAll(e : Entity | 
+    relships->forAll(r : Relship | 
+      e.name <> r.name))
+
+-- RN: Relship names phải unique
+context Schema inv RN:
+  relships->forAll(r1 : Relship, r2 : Relship | 
+    r1.name = r2.name implies r1 = r2)
+
+-- EN: Entity names phải unique
+context Schema inv EN:
+  self.entities->forAll(e1 : Entity, e2 : Entity | 
+    e1.name = e2.name implies e1 = e2)
+
+context Entity inv EAN:
+  self.attrs->forAll(a1, a2 | a1.name = a2.name implies a1 = a2)
+
+context Entity inv KEY:
+  self.attrs->exists(a | a.isKey = true)
+
+context Relship inv REN:
+  self.ends->forAll(e1, e2 | e1.name = e2.name implies e1 = e2)

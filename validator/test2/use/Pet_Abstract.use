@@ -1,0 +1,29 @@
+model pet
+
+-- Classes
+class Person
+end
+
+abstract class Pet
+attributes
+  id : Integer
+end
+
+class Cat < Pet
+end
+
+class Dog < Cat
+end
+
+-- Associations
+association animals between
+  Person[0..1] role owner
+  Pet[0..*] role pets ordered
+end
+
+-- Constraints
+constraints
+
+-- Person must have at least one pet at position 1
+context Person inv animalAt:
+  self.pets->at(1) <> null

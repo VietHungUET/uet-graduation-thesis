@@ -1,0 +1,31 @@
+model PaperResearch
+
+-- Classes
+class Paper
+attributes
+  title : String          -- bắt buộc (lower=1 implied trong UML)
+  wordCount : Integer     -- optional (lower=0, nhưng có default nil)
+  studentPaper : Boolean  -- bắt buộc giá trị
+end
+
+class Researcher
+attributes
+  name : String           -- bắt buộc
+  isStudent : Boolean     -- bắt buộc giá trị
+end
+
+-- Associations
+
+-- Reviews: mỗi Paper có đúng 3 Researcher làm referee
+--          mỗi Researcher review tối đa 1 Paper (multiplicity 0..1 ở phía submission)
+association Reviews between
+  Paper[0..1] role submission      -- mỗi researcher có tối đa 1 submission
+  Researcher[3..3] role referee    -- mỗi paper có đúng 3 referee
+end
+
+-- Writes: mỗi Paper có 1 đến 2 Researcher làm author
+--         mỗi Researcher viết tối đa 1 Paper (multiplicity 0..1 ở phía manuscript)
+association Writes between
+  Paper[0..1] role manuscript      -- mỗi researcher có tối đa 1 manuscript
+  Researcher[1..2] role author     -- mỗi paper có 1-2 author
+end

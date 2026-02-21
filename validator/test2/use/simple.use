@@ -1,0 +1,18 @@
+model SimpleModel
+
+class Person
+attributes
+	name : String
+	hobbies : Sequence(String)
+end
+
+constraints
+context Person inv atLeastTwoHobbies:
+	self.hobbies->size() >= 3
+
+context Person inv hobbiesNotEmpty:
+	self.hobbies->notEmpty()
+
+-- Test 3: Includes
+context Person inv mustHaveReading:
+	self.hobbies->includes('Reading')
