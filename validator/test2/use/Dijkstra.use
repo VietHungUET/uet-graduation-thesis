@@ -1,0 +1,85 @@
+model DijkstraMutex_ExecutionTrace
+
+class Process end
+class Mutex end
+class State end
+
+-- Thứ tự thời gian của hệ thống (Execution Trace)
+association StateTrace between
+    State [0..1] role prevState
+    State [0..1] role nextState
+end
+
+-- Thứ tự cấp bậc của tài nguyên (Dijkstra Hierarchy Core)
+association MutexHierarchy between
+    Mutex [0..1] role lowerMutex
+    Mutex [0..1] role higherMutex
+end
+
+-- TIẾN TRÌNH ĐANG GIỮ KHÓA
+class Hold
+attributes
+    state   : State
+    process : Process
+    mutex   : Mutex
+end
+
+-- HÀNG ĐỢI ƯU TIÊN (SEQUENCE) TẠI MỘT THỜI ĐIỂM
+-- Thay thế cho Wait, class này ghi lại chính xác tình trạng 
+-- hàng đợi của MỘT Mutex tại MỘT State nhất định.
+class WaitQueue
+attributes
+    state : State
+    mutex : Mutex
+    -- Sequence ở đây chính là hàng đợi xếp hàng xin khóa
+    queue : Sequence(Process)
+end
+
+constraints
+
+-- 1. LOẠI TRỪ LẪN NHAU (Mutual Exclusion)
+-- Tại 1 State, 1 Mutex chỉ có TỐI ĐA 1 Tiến trình đang giữ
+context State inv MutualExclusion:
+    Mutex.allInstances()->forAll(m |
+        Hold.allInstances()->select(h | h.state = self and h.mutex = m)->size() <= 1
+    )
+
+-- 2. TÍNH TOÀN VẸN CỦA HÀNG ĐỢI (Queue Integrity)
+-- Mỗi Mutex tại 1 State chỉ có đúng 1 hàng đợi WaitQueue, không có tiến trình lặp lại
+context WaitQueue inv UniqueQueuePerMutexState:
+    WaitQueue.allInstances()->forAll(wq |
+        wq <> self implies (wq.state <> self.state or wq.mutex <> self.mutex)
+    )
+context WaitQueue inv NoDuplicateInQueue:
+    self.queue->asSet()->size() = self.queue->size()
+
+-- Đang giữ khóa thì không được xếp hàng chờ ở chính khóa đó
+context WaitQueue inv HoldNotWaiting:
+    Hold.allInstances()->forAll(h |
+        (h.state = self.state and h.mutex = self.mutex) implies 
+        self.queue->excludes(h.process)
+    )
+
+-- 3. LUẬT CHỐNG DEADLOCK CỦA DIJKSTRA (Resource Hierarchy)
+-- Tiến trình đang xếp hàng chờ m2, thì TẤT CẢ khóa m1 nó đang giữ 
+-- BẮT BUỘC phải là cấp thấp hơn m2.
+context WaitQueue inv DijkstraHierarchyRule:
+    Sequence{1..(self.queue->size())}->forAll(i |
+        let p = self.queue->at(i) in
+        Hold.allInstances()->select(h | h.state = self.state and h.process = p)->forAll(h |
+            -- higherMutex hoặc higherMutex của higherMutex...
+            h.mutex.higherMutex->includes(self.mutex) or
+            h.mutex.higherMutex.higherMutex->includes(self.mutex)
+        )
+    )
+
+-- 4. LUẬT CHUYỂN TRẠNG THÁI (State Transition) - Vết Thực Thi
+-- Ở State tiếp theo, khóa chỉ được cấp cho tiến trình ĐỨNG ĐẦU hàng đợi ở State trước.
+context WaitQueue inv StrictPriorityGrant:
+    let nextStateHolds = Hold.allInstances()->select(h | h.state = self.state.nextState and h.mutex = self.mutex) in
+    self.state.nextState->notEmpty() implies
+        -- Nếu hàng đợi không rỗng, và sang state sau khóa rảnh rỗi hoặc đổi người giữ
+        (self.queue->notEmpty() implies
+            -- Tiến trình đứng đầu phải được ưu tiên cấp khóa nếu khóa được nhả ra
+            nextStateHolds->notEmpty() implies nextStateHolds.process->includes(self.queue->first())
+        )

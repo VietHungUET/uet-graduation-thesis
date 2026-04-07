@@ -1,0 +1,19 @@
+model Pigeonhole
+
+-- Bồ câu: mỗi con chiếm đúng một lỗ
+class Pigeon
+attributes
+    hole : Hole
+end
+
+-- Lỗ tổ: không có thuộc tính riêng
+class Hole
+end
+
+constraints
+
+-- Nguyên lý Pigeonhole: không có hai con bồ câu nào
+-- được chiếm cùng một lỗ tổ
+context Pigeon inv NoPigeonSharedHole:
+    Pigeon.allInstances()->forAll(p1, p2 |
+        p1 <> p2 implies p1.hole <> p2.hole)

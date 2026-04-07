@@ -1,0 +1,86 @@
+model DoublyLinkedList
+
+-- Lớp đại diện cho một nút trong danh sách
+class Node
+attributes
+  key : Integer
+end
+
+-- Lớp quản lý danh sách liên kết
+class List
+attributes
+  -- THUỘC TÍNH SEQUENCE BASIC TYPE:
+  -- Lưu thứ tự duyệt danh sách dưới dạng chuỗi các giá trị key (Integer)
+  -- thay vì Sequence(Node) để tương thích với hệ thống
+  keySequence : Sequence(Integer)
+end
+
+-- ==========================================
+-- CÁC LIÊN KẾT (Tương đương với Relations trong Kodkod)
+-- ==========================================
+
+-- Con trỏ chỉ đến phần tử đầu tiên của danh sách
+association Header between
+  List[0..1] role list
+  Node[0..1] role header
+end
+
+-- Con trỏ trỏ đến phần tử kế tiếp
+association Next between
+  Node[0..1] role previous
+  Node[0..1] role next
+end
+
+-- Con trỏ trỏ đến phần tử phía trước
+association Prev between
+  Node[0..1] role following
+  Node[0..1] role prev
+end
+
+-- ==========================================
+-- CÁC RÀNG BUỘC OCL (INVARIANTS)
+-- ==========================================
+constraints
+
+-- 0. Header phải khác null
+context List inv HeaderNotNull:
+  self.header <> null
+
+-- 1. RÀNG BUỘC GỐC CỦA DANH SÁCH LIÊN KẾT ĐÔI:
+-- Nếu A.next = B thì B.prev = A và ngược lại.
+context Node inv NextPrevConsistency:
+  (self.next->notEmpty() implies self.next.prev = self) and
+  (self.prev->notEmpty() implies self.prev.next = self)
+
+-- ==========================================
+-- RÀNG BUỘC SEQUENCE (dùng Sequence(Integer) thay Sequence(Node))
+-- ==========================================
+
+-- 2. Kích thước chuỗi = số lượng Node (mỗi node xuất hiện đúng 1 lần)
+context List inv SequenceSize:
+  self.keySequence->size() = Node.allInstances()->size()
+
+-- 3. Phần tử đầu tiên của chuỗi = key của header
+context List inv FirstKeyIsHeader:
+  self.keySequence->notEmpty() implies
+    self.keySequence->first() = self.header.key
+
+-- 4. Không có key nào lặp lại trong chuỗi
+context List inv NoDuplicateKeys:
+  self.keySequence->asSet()->size() = self.keySequence->size()
+
+-- 5. Mọi key trong keySequence phải là key của một Node thực tế
+context List inv AllKeysAreValid:
+  self.keySequence->forAll(k |
+    Node.allInstances()->exists(n | n.key = k))
+
+-- 6. ĐỐI KHỚP VỊ TRÍ VÀ CON TRỎ (Ràng buộc quan trọng nhất):
+-- key ở vị trí i+1 phải là key của node.next của node tại vị trí i
+context List inv SequenceMatchesPointers:
+  Sequence{1..(self.keySequence->size() - 1)}->forAll(i |
+    Node.allInstances()->exists(n |
+      n.key = self.keySequence->at(i) and
+      n.next->notEmpty() and
+      n.next.key = self.keySequence->at(i + 1)
+    )
+  )

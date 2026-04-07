@@ -1,0 +1,41 @@
+model Department
+
+-- Nhân viên
+class Employee
+attributes
+  id : Integer
+end
+
+-- Phòng ban
+class Department
+attributes
+  name : String
+operations
+  -- Trả về danh sách có thứ tự các nhân viên thuộc phòng ban này
+  getStaff() : Sequence(Employee) = self.employees->asSequence()
+end
+
+-- Association: Department sở hữu nhiều Employee
+association WorksIn between
+  Department [0..1] role dept
+  Employee   [*]    role employees
+end
+
+constraints
+
+-- Phòng ban phải có ít nhất 1 nhân viên
+context Department inv NotEmpty:
+  self.getStaff()->notEmpty()
+
+-- Ít nhất 2, tối đa 5 nhân viên mỗi phòng
+context Department inv MinStaff:
+  self.getStaff()->size() >= 3
+
+context Department inv MaxStaff:
+  self.getStaff()->size() <= 5
+
+-- Nhân viên đứng đầu danh sách phải có id nhỏ nhất trong phòng
+context Department inv FirstEmployeeHasLowestId:
+  self.getStaff()->notEmpty() implies
+    self.getStaff()->forAll(e |
+      self.getStaff()->first().id >= e.id)

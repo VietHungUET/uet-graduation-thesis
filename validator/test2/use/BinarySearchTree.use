@@ -1,0 +1,76 @@
+model BinarySearchTree
+
+class BinaryTree
+attributes
+  size : Integer
+end
+
+class Node
+attributes
+  key : Integer
+end
+
+association Root between
+  BinaryTree[0..1] role tree
+  Node[0..1] role root
+end
+
+association LeftChild between
+  Node[0..1] role parentL
+  Node[0..1] role left
+end
+
+association RightChild between
+  Node[0..1] role parentR
+  Node[0..1] role right
+end
+
+association ParentNode between
+  Node[0..1] role child
+  Node[0..1] role parent
+end
+
+constraints
+
+-- 1. RÀNG BUỘC ACYCLIC (Tính không tuần hoàn)
+-- Một node không bao giờ nằm trong tập hợp các node con cháu của chính nó.
+context Node inv Acyclic:
+  (self.left->asSet()->union(self.right->asSet()))
+    ->closure(n | n.left->asSet()->union(n.right->asSet()))
+    ->excludes(self)
+
+-- 2. RÀNG BUỘC SEARCH (Tính chất cây tìm kiếm nhị phân)
+-- Mọi node thuộc nhánh trái (và con cháu của nó) phải có key < key của node hiện tại
+context Node inv SearchLeft:
+  self.left <> null implies 
+  self.left->asSet()->closure(n | n.left->asSet()->union(n.right->asSet()))->including(self.left)
+      ->forAll(descendant | descendant.key < self.key)
+
+-- Mọi node thuộc nhánh phải (và con cháu của nó) phải có key > key của node hiện tại
+context Node inv SearchRight:
+  self.right <> null implies 
+  self.right->asSet()->closure(n | n.left->asSet()->union(n.right->asSet()))->including(self.right)
+      ->forAll(descendant | descendant.key > self.key)
+
+-- 3. RÀNG BUỘC PARENT (Tính nhất quán của con trỏ ngược)
+-- Nếu A là left/right của B thì parent của A phải là B
+context Node inv ParentConsistent:
+  (self.left <> null implies self.left.parent = self) and
+  (self.right <> null implies self.right.parent = self)
+
+-- Node gốc (root) không có parent
+context BinaryTree inv RootHasNoParent:
+  self.root <> null implies self.root.parent = null
+
+-- 4. RÀNG BUỘC LIÊN THÔNG (Reachable from root)
+-- Mọi Node sinh ra đều phải thuộc về cây (chống sinh ra các node trôi nổi)
+context Node inv ReachableFromRoot:
+  BinaryTree.allInstances()->exists(t | 
+    t.root = self or 
+    Set{t.root}->closure(n | n.left->asSet()->union(n.right->asSet()))->includes(self)
+  )
+
+-- 5. RÀNG BUỘC SIZE (Đếm số lượng)
+context BinaryTree inv TreeSize:
+  self.root <> null implies 
+  self.size = Set{self.root}->closure(n | n.left->asSet()->union(n.right->asSet()))->size()

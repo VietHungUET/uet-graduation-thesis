@@ -1,0 +1,110 @@
+model Hotel
+
+-- =============================================================
+-- Hotel Key Card System
+-- Adapted from Pardinus/Alloy Hotel.java for static + Sequence support
+-- Temporal logic removed, replaced by Sequence(Integer) key history
+-- =============================================================
+
+-- Thẻ từ của khách sạn:
+-- k1: mã khóa cũ (dùng để đối chiếu khi check-in)
+-- k2: mã khóa mới (được cài vào ổ khóa sau check-in)
+class Card
+attributes
+  k1 : Integer
+  k2 : Integer
+end
+
+-- Phòng khách sạn:
+-- currentKeyId: mã khóa hiện tại đang cài trên ổ khóa
+-- keyHistory: chuỗi các mã khóa đã được cài lên ổ khóa theo thứ tự thời gian
+--             (phần tử cuối = currentKeyId, phần tử đầu = mã khóa ban đầu)
+class Room
+attributes
+  currentKeyId : Integer
+  keyHistory   : Sequence(Integer)
+end
+
+-- Khách hàng
+class Guest
+end
+
+-- Khách giữ thẻ từ
+association Holds between
+  Guest [0..1] role guest
+  Card  [*]    role cards
+end
+
+-- Khách đang ở trong phòng
+association Occupies between
+  Room  [0..1] role room
+  Guest [*]    role occupants
+end
+
+constraints
+
+-- ============================================================
+-- RÀNG BUỘC VỀ THẺ TỪ (Card)
+-- ============================================================
+
+-- Mã k1 và k2 trên cùng một thẻ phải khác nhau
+context Card inv DiffKeys:
+  self.k1 <> self.k2
+
+-- Không hai thẻ nào được phát cùng mã k2 (mã mới phải là duy nhất)
+context Card inv UniqueK2:
+  Card.allInstances()->forAll(c1, c2 |
+    c1 <> c2 implies c1.k2 <> c2.k2)
+
+-- ============================================================
+-- RÀNG BUỘC VỀ PHÒNG (Room) — dùng Sequence
+-- ============================================================
+
+-- Lịch sử khóa phải: không rỗng, và phần tử cuối = currentKeyId
+context Room inv KeyHistoryConsistent:
+  self.keyHistory->notEmpty() and
+  self.keyHistory->last() = self.currentKeyId
+
+-- Lịch sử phải có ít nhất 2 mã (mã gốc + ít nhất 1 lần cập nhật)
+context Room inv KeyHistoryMinSize:
+  self.keyHistory->size() >= 2
+
+-- Hai mã khóa liên tiếp trong lịch sử phải khác nhau
+-- (mỗi lần check-in THỰC SỰ thay đổi mã khóa)
+context Room inv NoRepeatedConsecutiveKeys:
+  Sequence{1..(self.keyHistory->size() - 1)}->forAll(i |
+    self.keyHistory->at(i) <> self.keyHistory->at(i + 1))
+
+-- ============================================================
+-- BIẾN THỂ UNSAT — NoIntervening (Hệ thống an toàn)
+-- ============================================================
+-- Mục tiêu: Thêm giả định "NoIntervening" (không có sự kiện xen vào)
+-- Kết hợp với việc buộc tồn tại kịch bản xâm nhập trái phép (ForceBadEntry)
+-- → Hệ thống bất khả thi (UNSAT) → chứng minh hệ thống AN TOÀN.
+
+-- Mọi khách phải đang ở trong phòng (để tránh trivial vacuous satisfaction)
+context Guest inv MustOccupy:
+  self.room->notEmpty()
+
+-- Mọi khách phải có ít nhất 1 thẻ
+context Guest inv MustHaveCard:
+  self.cards->notEmpty()
+
+-- BUỘC kịch bản vi phạm: khách ở trong phòng nhưng KHÔNG có thẻ hợp lệ
+-- (k2 của mọi thẻ đều # mã khóa hiện tại của phòng)
+context Guest inv ForceBadEntry:
+  self.cards->forAll(c | c.k2 <> self.room.currentKeyId)
+
+-- Thẻ phải gắn với phòng: k1 của thẻ phải có trong lịch sử khóa của phòng
+-- (đảm bảo thẻ được phát ra tại thời điểm nào đó cho phòng này)
+context Guest inv CardLinkedToRoom:
+  self.cards->forAll(c | self.room.keyHistory->includes(c.k1))
+
+-- GIẢI ĐỊNH NoIntervening:
+-- Nếu thẻ (k1, k2) có k1 ∈ history của phòng → k2 PHẢI là mã khóa HIỆN TẠI
+-- Không có sự kiện nào xen vào giữa thời điểm phát thẻ và hiện tại
+context Guest inv NoIntervening:
+  self.cards->forAll(c |
+    self.room.keyHistory->includes(c.k1) implies
+      self.room.currentKeyId = c.k2)
+

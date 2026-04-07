@@ -1,0 +1,33 @@
+model StudentGrades
+
+class Student
+attributes
+    name   : String
+    grades : Sequence(Integer)
+end
+
+constraints
+
+-- Moi diem phai trong khoang hop le [0..10]
+context Student inv gradesInRange:
+    self.grades->min() >= 0 and self.grades->max() <= 10
+
+-- Diem dau tien (bai kiem tra thu nhat) phai >= 5 (dat)
+context Student inv firstGradePassed:
+    self.grades->first() >= 5
+
+-- Diem cuoi cung (bai kiem tra cuoi cung) phai >= 5 (dat)
+context Student inv lastGradePassed:
+    self.grades->last() >= 5
+
+-- Diem bai kiem tra thu 2 (index = 1) phai >= 4
+context Student inv secondGradeAcceptable:
+    self.grades->at(1) >= 4
+
+-- Diem thap nhat khong duoc duoi 3 (tranh truot qua tham)
+context Student inv minGradeNotTooLow:
+    self.grades->min() >= 3
+
+-- Diem cao nhat phai dat tu 7 tro len (co it nhat mot diem gioi)
+context Student inv maxGradeGood:
+    self.grades->max() >= 7

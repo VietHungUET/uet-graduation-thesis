@@ -1,0 +1,46 @@
+model Library2
+
+-- =============================================================
+-- Bài toán Thư viện (Library) chuyển từ Kodkod nguyên thủy
+-- Tương ứng với dải đối tượng: User(u1,u2), Copy(c1,c2), Book(bk1,bk2)
+-- =============================================================
+
+class User end
+class Copy end
+class Book end
+
+-- Quan hệ Borrows: User -> Copy
+-- Mã hóa: "all c:Copy | lone Borrows.c" 
+-- Tức là một bản sao (Copy) có ĐA (lone = 0..1) người dùng (User) mượn.
+association Borrows between
+  User [0..1] role borrower
+  Copy [*]    role borrowedCopies
+end
+
+-- Quan hệ BelongsTo: Copy -> Book
+-- Mã hóa: "all c:Copy | one c.BelongsTo"
+-- Tức là một bản sao (Copy) thuộc về ĐÚNG MỘT (one = 1) đầu sách (Book).
+association BelongsTo between
+  Copy [*] role copies
+  Book [1] role book
+end
+
+constraints
+
+-- 1. all c:Copy | lone Borrows.c
+-- (Đã chặn bằng Multiplicity User [0..1] ở trên, nhưng viết rõ ra OCL để sinh mệnh đề)
+context Copy inv LoneBorrows:
+  self.borrower->size() <= 1
+
+-- 2. all c:Copy | one c.BelongsTo
+-- (Đã chặn bằng Multiplicity Book [1] ở trên, viết OCL cho chắc chắn)
+context Copy inv OneBelongsTo:
+  self.book->size() = 1
+
+-- 3. one Copy (Chỉ có đúng một bản sao)
+context Copy inv OneCopyExists:
+  Copy.allInstances()->size() = 1
+
+-- 4. one Book (Chỉ có đúng một đầu sách)
+context Book inv OneBookExists:
+  Book.allInstances()->size() = 1

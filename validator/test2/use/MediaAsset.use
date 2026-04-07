@@ -1,0 +1,70 @@
+model MediaAssetManagement
+
+-- Lớp đại diện cho tệp tin phương tiện (ảnh, video)
+class Asset
+attributes
+  name : String
+end
+
+-- Lớp đại diện cho Thư mục quản lý
+class Catalog
+attributes
+  catalogId : String
+  -- THUỘC TÍNH BỔ SUNG ĐỂ KIỂM THỬ SEQUENCE:
+  -- Danh sách phát trình chiếu, có thứ tự và cho phép lặp lại
+  playlist : Sequence(String)
+end
+
+-- ==========================================
+-- CÁC LIÊN KẾT TRẠNG THÁI CỦA ASSET (Tương đương Set trong Alloy)
+-- ==========================================
+
+-- Tập hợp các tệp đang được hiển thị
+association ShowingAssets between
+  Catalog[0..1] role catShow
+  Asset[*] role showing
+end
+
+-- Tập hợp các tệp đang bị ẩn
+association HiddenAssets between
+  Catalog[0..1] role catHide
+  Asset[*] role hidden
+end
+
+-- Tập hợp các tệp đang được chọn (Select)
+association SelectedAssets between
+  Catalog[0..1] role catSelect
+  Asset[*] role selection
+end
+
+-- ==========================================
+-- CÁC RÀNG BUỘC OCL (INVARIANTS)
+-- ==========================================
+constraints
+
+-- 1. RÀNG BUỘC GỐC TỪ ALLOY: 
+-- Một tệp không thể vừa ở trạng thái hiển thị vừa ở trạng thái ẩn (Partition)
+context Catalog inv DisjointStates:
+  self.showing->intersection(self.hidden)->isEmpty()
+
+-- 2. RÀNG BUỘC GỐC TỪ ALLOY (catalogInv):
+-- Bất kỳ tệp nào đang được chọn (selection) thì BẮT BUỘC phải đang hiển thị (showing)
+context Catalog inv SelectionMustBeShowing:
+  self.selection->notEmpty() implies self.showing->includesAll(self.selection)
+
+-- ==========================================
+-- RÀNG BUỘC KIỂM THỬ THUẬT TOÁN SEQUENCE CỦA BẠN
+-- ==========================================
+
+-- 3. Kiểm thử thuộc tính phần tử (Test logic Sequence liên kết với Set):
+-- Mọi tên file có mặt trong Sequence 'playlist' đều phải là của một Asset đang được hiển thị.
+context Catalog inv PlaylistOnlyShowingAssets:
+  self.playlist->forAll(pName | 
+    self.showing->exists(a | a.name = pName)
+  )
+
+-- 4. Kiểm thử các hàm xử lý Sequence (size, first, last):
+-- Nếu playlist có từ 2 phần tử trở lên, phần tử đầu tiên và cuối cùng phải khác nhau.
+context Catalog inv PlaylistSequenceOperations:
+  self.playlist->size() > 1 implies 
+  self.playlist->first() <> self.playlist->last()
