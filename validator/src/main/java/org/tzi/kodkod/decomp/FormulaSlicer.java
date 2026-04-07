@@ -7,7 +7,6 @@ package org.tzi.kodkod.decomp;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -44,7 +43,6 @@ import kodkod.ast.SumExpression;
 import kodkod.ast.UnaryExpression;
 import kodkod.ast.UnaryIntExpression;
 import kodkod.ast.Variable;
-import kodkod.ast.operator.FormulaOperator;
 import kodkod.ast.visitor.AbstractVoidVisitor;
 
 /**
@@ -125,38 +123,29 @@ public class FormulaSlicer {
             return new SliceResult(Formula.TRUE, formula);
         }
 
-        List<Formula> f1 = new ArrayList<>(); // partial conjuncts
-        List<Formula> f2 = new ArrayList<>(); // remainder conjuncts
+        // Step 1: Flatten to NNF and break nested ANDs into a flat conjunct list.
+        // This is the key step: without flattening, deeply-nested AND trees appear as
+        // a single conjunct and cannot be sliced. FormulaFlattener converts:
+        // (A ∧ B) ∧ (C ∧ D) → [A, B, C, D]
+        // so each clause can be individually tested for Rp-containment.
+        List<Formula> flatConjuncts = FormulaFlattener.flatten(formula);
 
-        // Handle based on formula structure (like Pardinus DecompFormulaSlicer)
-        if (formula instanceof BinaryFormula
-                && ((BinaryFormula) formula).op() == FormulaOperator.AND) {
-            BinaryFormula binary = (BinaryFormula) formula;
-            Set<Relation> rsl = collectRelations(binary.left());
-            Set<Relation> rsr = collectRelations(binary.right());
-            (partialRelations.containsAll(rsl) ? f1 : f2).add(binary.left());
-            (partialRelations.containsAll(rsr) ? f1 : f2).add(binary.right());
-        } else if (formula instanceof NaryFormula
-                && ((NaryFormula) formula).op() == FormulaOperator.AND) {
-            Iterator<Formula> it = ((NaryFormula) formula).iterator();
-            while (it.hasNext()) {
-                Formula f = it.next();
-                Set<Relation> rs = collectRelations(f);
-                if (partialRelations.containsAll(rs)) {
-                    f1.add(f);
-                } else {
-                    f2.add(f);
-                }
-            }
-        } else {
-            // Not a conjunction - check if all relations are partial
-            Set<Relation> rs = collectRelations(formula);
+        List<Formula> f1 = new ArrayList<>(); // partial conjuncts (only Rp relations)
+        List<Formula> f2 = new ArrayList<>(); // remainder conjuncts (use at least one Rr)
+
+        // Step 2: classify each flat conjunct
+        for (Formula f : flatConjuncts) {
+            Set<Relation> rs = collectRelations(f);
             if (partialRelations.containsAll(rs)) {
-                f1.add(formula);
+                f1.add(f);
             } else {
-                f2.add(formula);
+                f2.add(f);
             }
         }
+
+        System.out.println("[FormulaSlicer] Flat conjuncts: " + flatConjuncts.size()
+                + "  -> f1 (Rp-only): " + f1.size()
+                + ",  f2 (uses Rr): " + f2.size());
 
         return new SliceResult(Formula.and(f1), Formula.and(f2));
     }

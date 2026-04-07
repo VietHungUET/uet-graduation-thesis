@@ -138,9 +138,8 @@ public class DecomposedKodkodSolver {
         Set<Relation> remainderRelations = partition.getRemainderRelations();
 
         System.out.println("\n=== Relation Partitioning ===");
-        System.out.println("Total relations: " + bounds.relations().size());
-        System.out.println("Rp (partial, outdegree ≤ " + config.getThreshold() + "): " + partialRelations.size());
-        System.out.println("Rr (remainder): " + remainderRelations.size());
+        System.out.println("Rp (partial, outdegree < max): " + partialRelations.size());
+        System.out.println("Rr (remainder, outdegree = max): " + remainderRelations.size());
         System.out.println("\nRp relations:");
         for (Relation r : partialRelations) {
             System.out.println("  - " + r.name());
@@ -153,13 +152,15 @@ public class DecomposedKodkodSolver {
 
         // Check if decomposition is worthwhile
         if (partialRelations.isEmpty() || remainderRelations.isEmpty()) {
-            System.out.println("⚠️  Decomposition NOT applicable (trivial partition)");
-            System.out.println("   Falling back to standard solver...\n");
+            System.out.println("Decomposition NOT applicable (trivial partition)");
+            System.out.println("Falling back to standard solver...\n");
             // No benefit from decomposition - solve directly
-            return solver1.solve(formula, bounds);
+            Solution fallbackSolution = solver1.solve(formula, bounds);
+            System.out.println("[CNF] Clauses (fallback): " + fallbackSolution.stats().clauses());
+            return fallbackSolution;
         }
 
-        System.out.println("✓ Decomposition applicable! Starting 2-phase solving...\n");
+        System.out.println("Decomposition applicable! Starting 2-phase solving...\n");
 
         // Step 3: Slice formula
         SliceResult slice = FormulaSlicer.slice(formula, partialRelations);
@@ -168,18 +169,8 @@ public class DecomposedKodkodSolver {
         // Step 4: Create partial bounds (only Rp relations)
         Bounds partialBounds = createPartialBounds(bounds, partialRelations);
 
-        // LOG: Show Phase 1 bounds
-        System.out.println("\n=== PHASE 1 BOUNDS (Rp only) ===");
-        System.out.println("Relations in Phase 1 bounds: " + partialBounds.relations().size());
-        for (Relation r : partialBounds.relations()) {
-            System.out.println("  " + r.name() + ":");
-            System.out.println("    Lower: " + partialBounds.lowerBound(r));
-            System.out.println("    Upper: " + partialBounds.upperBound(r));
-        }
-        System.out.println("=================================\n");
-
         // Step 5: Get iterator for all Phase 1 solutions (configurations)
-        System.out.println("=== PHASE 1: Solving Rp ===");
+        System.out.println("=== [Phase 1] Solving Rp ===");
         long startPhase1 = System.currentTimeMillis();
         java.util.Iterator<Solution> phase1Iterator = solver1.solveAll(partialFormula, partialBounds);
 
@@ -196,52 +187,56 @@ public class DecomposedKodkodSolver {
             if (!phase1Solution.sat()) {
                 // No more configurations available
                 lastUnsatSolution = phase1Solution;
-                System.out.println("Phase 1: UNSAT\n");
+                System.out.println("Phase 1: UNSAT");
+                System.out.println("[CNF] Clauses (Phase 1): " + phase1Solution.stats().clauses()
+                        + "  [" + phase1Solution.outcome() + "]\n");
                 break;
             }
 
             phase1Solutions++;
             System.out.println("Phase 1: SAT (config #" + configCount + ")");
-
-            // LOG: Show Phase 1 solution
-            Instance partialInstance = phase1Solution.instance();
-            System.out.println("\n--- Phase 1 Solution (Rp values) ---");
-            for (Relation r : partialRelations) {
-                if (partialInstance.contains(r)) {
-                    System.out.println("  " + r.name() + " = " + partialInstance.tuples(r));
-                }
-            }
-            System.out.println("-------------------------------------\n");
+            System.out.println("[CNF] Clauses (Phase 1): " + phase1Solution.stats().clauses()
+                    + "  [" + phase1Solution.outcome() + "]"
+                    + (phase1Solution.stats().clauses() == 0 ? "  <- trivially solved, no CNF generated" : ""));
 
             // Step 7: Create integrated bounds using partial solution
+            Instance partialInstance = phase1Solution.instance();
+
             Bounds integratedBounds = createIntegratedBounds(
                     partialInstance, bounds, partialRelations, remainderRelations);
 
-            // LOG: Show Phase 2 integrated bounds
-            System.out.println("\n=== PHASE 2 INTEGRATED BOUNDS ===");
-            System.out.println("Relations in Phase 2 bounds: " + integratedBounds.relations().size());
-            System.out.println("\n[FIXED from Phase 1] Rp relations (exact bounds):");
-            for (Relation r : partialRelations) {
-                if (integratedBounds.lowerBound(r) != null) {
-                    System.out.println("  " + r.name() + ":");
-                    System.out.println("    Exact: " + integratedBounds.lowerBound(r));
-                }
-            }
-            System.out.println("\n[VARIABLE] Rr relations (original bounds):");
-            for (Relation r : remainderRelations) {
-                if (integratedBounds.lowerBound(r) != null) {
-                    System.out.println("  " + r.name() + ":");
-                    System.out.println("    Lower: " + integratedBounds.lowerBound(r));
-                    System.out.println("    Upper: " + integratedBounds.upperBound(r));
-                }
-            }
-            System.out.println("==================================\n");
-
             // Step 8: Solve Phase 2 (Integrated Problem)
-            System.out.println("=== PHASE 2: Solving full problem ===");
+            System.out.println("=== [Phase 2] Solving full problem ===");
+
+            // DEBUG: print integrated bounds on first config only
+            if (configCount == 1) {
+                System.out.println("[IntegratedBounds DEBUG] All bounded relations:");
+                for (kodkod.ast.Relation r : integratedBounds.relations()) {
+                    kodkod.instance.TupleSet lb = integratedBounds.lowerBound(r);
+                    kodkod.instance.TupleSet ub = integratedBounds.upperBound(r);
+                    boolean invalid = (lb != null && ub != null && lb.size() > ub.size());
+                    System.out.println("  " + r.name()
+                            + "  lb=" + (lb == null ? "null" : lb.size())
+                            + "  ub=" + (ub == null ? "null" : ub.size())
+                            + (invalid ? "  *** INVALID: lb > ub ***" : ""));
+                }
+                System.out.println("[IntegratedBounds DEBUG] IntBounds ints count: "
+                        + integratedBounds.ints().size());
+                // Check original formula relations vs integrated
+                java.util.Set<kodkod.ast.Relation> formulaRels = org.tzi.kodkod.decomp.FormulaSlicer
+                        .collectRelations(formula);
+                for (kodkod.ast.Relation r : formulaRels) {
+                    if (integratedBounds.lowerBound(r) == null) {
+                        System.out.println("  *** MISSING FROM BOUNDS: " + r.name() + " ***");
+                    }
+                }
+            }
+
             long startPhase2 = System.currentTimeMillis();
             Solution phase2Solution = solver2.solve(formula, integratedBounds);
             phase2Time = System.currentTimeMillis() - startPhase2;
+            System.out.println("[CNF] Clauses (Phase 2): " + phase2Solution.stats().clauses()
+                    + "  [" + phase2Solution.outcome() + "]");
 
             if (phase2Solution.sat()) {
                 // SUCCESS! Found valid complete solution
@@ -274,37 +269,54 @@ public class DecomposedKodkodSolver {
     private DependencyGraph buildDependencyGraph(Bounds bounds) {
         DependencyGraph graph = new DependencyGraph();
 
-        // Add all relations to the graph
-        for (Relation r : bounds.relations()) {
-            graph.addRelation(r);
-        }
-
-        // If we have a symbolic bounds manager, use it to populate dependencies
         if (symbolicManager != null) {
             System.out.println("\n=== Building Dependency Graph ===");
 
-            // Use getAllDependencies() which includes both symbolic AND structural
-            // dependencies
+            // Lay tap chinh xac cac model relations (class/attribute/association)
+            // da duoc dang ky qua registerModelRelation() trong BoundsVisitor.
+            // Type relations (String_Reading, Boolean_True, Undefined...) KHONG co trong
+            // tap nay.
+            Set<Relation> modelRels = symbolicManager.getAllModelRelations();
+
+            // Them model relations vao graph, bo qua cac relation co upper bound rong
+            // (vi du: Real khi model khong dung kieu Real - upper=[] thi khong can giai)
+            int addedCount = 0;
+            for (Relation r : modelRels) {
+                kodkod.instance.TupleSet upper = bounds.upperBound(r);
+                if (upper != null && !upper.isEmpty()) {
+                    graph.addRelation(r);
+                    addedCount++;
+                }
+            }
+            System.out.println("Total model relations: " + addedCount);
+            for (Relation r : graph.getAllRelations()) {
+                System.out.println("  [Model] " + r.name());
+            }
+
+            // Them canh phu thuoc chi giua cac model relations
+            // (bo qua phu thuoc toi cac type relations)
             Map<Relation, Set<Relation>> allDeps = symbolicManager.getAllDependencies();
-
-            System.out.println("Total relations with dependencies: " + allDeps.size());
-
             for (Map.Entry<Relation, Set<Relation>> entry : allDeps.entrySet()) {
                 Relation target = entry.getKey();
-                Set<Relation> dependencies = entry.getValue();
-
-                System.out.println("  " + target.name() + " → " + dependencies.size() + " dependencies");
-
-                for (Relation dependency : dependencies) {
-                    graph.addDependency(target, dependency);
-                    System.out.println("    depends on: " + dependency.name());
+                if (!modelRels.contains(target))
+                    continue;
+                for (Relation dependency : entry.getValue()) {
+                    if (modelRels.contains(dependency)) {
+                        graph.addDependency(target, dependency);
+                        System.out.println("  " + target.name() + " -> " + dependency.name());
+                    }
+                    // Bo qua phu thuoc den type relations (String, Boolean, Undefined...)
                 }
             }
 
             System.out.println("=================================\n");
+        } else {
+            // Fallback khi khong co SymbolicBoundsManager:
+            // Them tat ca relations tu bounds (fallback an toan)
+            for (Relation r : bounds.relations()) {
+                graph.addRelation(r);
+            }
         }
-        // Otherwise, no dependencies are added (all relations have outdegree = 0)
-        // This is the simple case when symbolic bounds are not used
 
         return graph;
     }
@@ -320,6 +332,15 @@ public class DecomposedKodkodSolver {
                 partial.bound(r, original.lowerBound(r), original.upperBound(r));
             }
         }
+
+        // Copy constant relations (type literals: String_Reading, Boolean_True,
+        // ToStringMap...)
+        // Phai loai tru TAT CA model relations (ca Rp lan Rr), khong chi Rp,
+        // de tranh Person_hobbies, Person_name... bi copy vao Phase 1 voi empty bounds.
+        Set<Relation> allModelRels = symbolicManager != null
+                ? symbolicManager.getAllModelRelations()
+                : partialRelations;
+        copyConstantRelationBounds(original, partial, allModelRels);
 
         // Copy integer bounds
         copyIntBounds(original, partial);
@@ -339,10 +360,26 @@ public class DecomposedKodkodSolver {
         Bounds integrated = new Bounds(original.universe());
 
         // Fix partial relations to their solution values (exact bounds)
+        int fixedCount = 0, missingCount = 0;
         for (Relation r : partialRelations) {
             if (partialInstance.contains(r)) {
                 integrated.boundExactly(r, partialInstance.tuples(r));
+                fixedCount++;
+            } else {
+                // Relation is in Rp but NOT in Phase 1 instance!
+                // Must still bound it, otherwise Phase 2 has no bounds for this relation.
+                // Fall back to original bounds.
+                if (original.lowerBound(r) != null && original.upperBound(r) != null) {
+                    integrated.bound(r, original.lowerBound(r), original.upperBound(r));
+                    System.out.println(
+                            "[IntegratedBounds] WARN: Rp relation not in instance, using original bounds: " + r.name());
+                    missingCount++;
+                }
             }
+        }
+        if (missingCount > 0) {
+            System.out.println(
+                    "[IntegratedBounds] Fixed: " + fixedCount + ", Missing (fallback to original): " + missingCount);
         }
 
         // Add remainder relations with original bounds
@@ -352,10 +389,44 @@ public class DecomposedKodkodSolver {
             }
         }
 
+        // Copy tat ca constant relations (type literals: String_Reading, Boolean_True,
+        // ToStringMap...)
+        // Ca hai pha deu can chung vi formula tham chieu chung
+        Set<Relation> allModelRels = new java.util.HashSet<>(partialRelations);
+        allModelRels.addAll(remainderRelations);
+        copyConstantRelationBounds(original, integrated, allModelRels);
+
         // Copy integer bounds
         copyIntBounds(original, integrated);
 
         return integrated;
+    }
+
+    /**
+     * Copy tat ca relations trong original ma KHONG phai model relation (Rp hoac
+     * Rr)
+     * sang target bounds dang boundExactly.
+     *
+     * Day la cac type literal singletons (String_Reading, Boolean_True,
+     * ToStringMap...)
+     * duoc Kodkod tham chieu trong formula nhung khong can giai (gia tri da co
+     * dinh).
+     *
+     * @param original       Bounds goc
+     * @param target         Bounds nhan
+     * @param modelRelations Tap hop cac model relations (se bi loai khoi viec copy
+     *                       nay)
+     */
+    private void copyConstantRelationBounds(Bounds original, Bounds target, Set<Relation> modelRelations) {
+        for (Relation r : original.relations()) {
+            if (!modelRelations.contains(r)) {
+                // Day la constant relation - copy dang boundExactly (lower == upper)
+                kodkod.instance.TupleSet lo = original.lowerBound(r);
+                if (lo != null) {
+                    target.boundExactly(r, lo);
+                }
+            }
+        }
     }
 
     /**

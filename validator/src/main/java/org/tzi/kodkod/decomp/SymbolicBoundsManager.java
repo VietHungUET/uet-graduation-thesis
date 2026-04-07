@@ -38,6 +38,8 @@ public class SymbolicBoundsManager {
     /** Structural dependencies (from IModelElement.getDependencies()) */
     private final Map<Relation, Set<Relation>> structuralDependencies;
 
+    private final Set<Relation> modelRelations;
+
     /** The dependency graph built from symbolic bounds */
     private DependencyGraph dependencyGraph;
 
@@ -48,6 +50,7 @@ public class SymbolicBoundsManager {
         this.symbolicBounds = new HashMap<>();
         this.constantRelations = new HashSet<>();
         this.structuralDependencies = new HashMap<>();
+        this.modelRelations = new HashSet<>();
         this.dependencyGraph = null;
     }
 
@@ -190,6 +193,30 @@ public class SymbolicBoundsManager {
     }
 
     /**
+     * Registers a model relation (class/attribute/association).
+     * Must be called for EVERY model relation in BoundsVisitor, even those
+     * with no dependencies. This allows correct partitioning in the decomposed
+     * solver.
+     *
+     * @param relation The model relation to register
+     */
+    public void registerModelRelation(Relation relation) {
+        modelRelations.add(relation);
+    }
+
+    /**
+     * Returns the set of ALL model relations registered via
+     * registerModelRelation().
+     * This is the authoritative set of relations that should be partitioned
+     * into Rp/Rr by the decomposed solver.
+     *
+     * @return Unmodifiable set of all model relations
+     */
+    public Set<Relation> getAllModelRelations() {
+        return java.util.Collections.unmodifiableSet(modelRelations);
+    }
+
+    /**
      * Gets all structural dependencies.
      * 
      * @return Map from relation to its dependencies
@@ -209,6 +236,11 @@ public class SymbolicBoundsManager {
                 merged.addAll(v2);
                 return merged;
             });
+        }
+
+        // Ensure all model relations appear (even those with 0 dependencies)
+        for (Relation r : modelRelations) {
+            result.computeIfAbsent(r, k -> new HashSet<>());
         }
 
         return result;

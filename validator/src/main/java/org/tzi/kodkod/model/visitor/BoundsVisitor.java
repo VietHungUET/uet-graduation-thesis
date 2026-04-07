@@ -59,8 +59,10 @@ public class BoundsVisitor extends SimpleVisitor {
 					clazz.inheritanceUpperBound(tupleFactory));
 		}
 
-		// Register dependencies for decomposition
+		// Register model relation and dependencies for decomposition
 		if (symbolicManager != null) {
+			// Always register as model relation (even with 0 dependencies)
+			symbolicManager.registerModelRelation(clazz.relation());
 			for (Relation dep : clazz.getDependencies()) {
 				symbolicManager.registerDependency(clazz.relation(), dep);
 			}
@@ -87,8 +89,10 @@ public class BoundsVisitor extends SimpleVisitor {
 
 		bounds.bound(attribute.relation(), lower, upper);
 
-		// Register dependencies for decomposition
+		// Register model relation and dependencies for decomposition
 		if (symbolicManager != null) {
+			// Always register as model relation (even with 0 dependencies)
+			symbolicManager.registerModelRelation(attribute.relation());
 			for (Relation dep : attribute.getDependencies()) {
 				symbolicManager.registerDependency(attribute.relation(), dep);
 			}
@@ -103,8 +107,10 @@ public class BoundsVisitor extends SimpleVisitor {
 		bounds.bound(association.relation(), association.lowerBound(tupleFactory),
 				association.upperBound(tupleFactory));
 
-		// Register dependencies for decomposition
+		// Register model relation and dependencies for decomposition
 		if (symbolicManager != null) {
+			// Always register as model relation (even with 0 dependencies)
+			symbolicManager.registerModelRelation(association.relation());
 			for (Relation dep : association.getDependencies()) {
 				symbolicManager.registerDependency(association.relation(), dep);
 			}
@@ -114,6 +120,9 @@ public class BoundsVisitor extends SimpleVisitor {
 	@Override
 	public void visitType(Type type) {
 		bounds.bound(type.relation(), type.lowerBound(tupleFactory), type.upperBound(tupleFactory));
+		if (symbolicManager != null) {
+			symbolicManager.registerModelRelation(type.relation());
+		}
 	}
 
 	@Override

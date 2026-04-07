@@ -1,7 +1,10 @@
 package org.tzi.kodkod;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.log4j.Logger;
@@ -9,8 +12,12 @@ import org.tzi.kodkod.decomp.DecomposedKodkodSolver;
 import org.tzi.kodkod.decomp.DecomposedSolverConfig;
 import org.tzi.kodkod.decomp.SymbolicBoundsManager;
 import org.tzi.kodkod.helper.LogMessages;
+import org.tzi.kodkod.model.iface.IAssociation;
+import org.tzi.kodkod.model.iface.IAttribute;
 import org.tzi.kodkod.model.iface.IClass;
 import org.tzi.kodkod.model.iface.IModel;
+import org.tzi.kodkod.model.impl.DerivedAssociation;
+import org.tzi.kodkod.model.impl.DerivedAttribute;
 import org.tzi.kodkod.model.type.IntegerType;
 import org.tzi.kodkod.model.type.TypeAtoms;
 import org.tzi.kodkod.model.visitor.BoundsVisitor;
@@ -23,6 +30,7 @@ import kodkod.engine.Evaluator;
 import kodkod.engine.Solution;
 import kodkod.engine.Solution.Outcome;
 import kodkod.instance.Bounds;
+import kodkod.instance.TupleSet;
 import kodkod.instance.Universe;
 
 /**
@@ -48,6 +56,9 @@ public class KodkodSolver {
 
 		Bounds bounds = createBounds(model, symbolicManager);
 		Formula constraint = createConstraint(model);
+
+		// --- In Universe atoms ---
+		logUniverse(bounds.universe(), model);
 
 		if (configuration.isDebugBoundsPrint()) {
 			LOG.info(bounds);
@@ -83,8 +94,15 @@ public class KodkodSolver {
 		DecomposedKodkodSolver decompSolver = new DecomposedKodkodSolver(decompConfig, kodkodOptions,
 				symbolicManager);
 
-		// Solve using new solver
 		Solution solution = decompSolver.solve(constraint, bounds);
+
+		// Log REAL total time of decomposed solver (solution.stats() only shows last
+		// SAT call)
+		LOG.info("Decomposed solving complete:");
+		LOG.info("  Phase 1 time : " + decompSolver.getPhase1Time() + " ms");
+		LOG.info("  Phase 2 time : " + decompSolver.getPhase2Time() + " ms");
+		LOG.info("  Total time   : " + decompSolver.getTotalTime() + " ms");
+		LOG.info("  Phase 1 configs tried: " + decompSolver.getPhase1Solutions());
 
 		// Create evaluator
 		createEvaluatorDecomposed(solution, kodkodOptions);
@@ -92,7 +110,6 @@ public class KodkodSolver {
 		if (Options.getDebug()) {
 			Log.println();
 			Log.println(solution.toString());
-			// TODO: Add getStatistics() method to DecomposedKodkodSolver later
 		}
 
 		return solution;
@@ -125,11 +142,9 @@ public class KodkodSolver {
 	 */
 	private Universe createUniverse(IModel model) {
 		Set<Object> atoms = new LinkedHashSet<Object>();
-		System.out.println("\n### Creating Universe ###");
+
 		Set<TypeAtoms> typeAtoms = new LinkedHashSet<TypeAtoms>(model.enumTypes());
 		typeAtoms.addAll(model.typeFactory().typeAtoms());
-
-		System.out.println("Processing TypeAtoms:");
 		for (TypeAtoms typeAtom : typeAtoms) {
 			atoms.addAll(typeAtom.atoms());
 			if (typeAtom.isInteger()) {
@@ -138,10 +153,41 @@ public class KodkodSolver {
 		}
 		for (IClass clazz : model.classes()) {
 			atoms.addAll(clazz.objectType().atoms());
-
 		}
 
 		return new Universe(atoms);
+	}
+
+	// -------------------------------------------------------------------------
+	// Logging helpers (System.out.println)
+	// -------------------------------------------------------------------------
+
+	/**
+	 * In tat ca atoms trong Kodkod Universe, nhom theo type va class.
+	 */
+	private void logUniverse(Universe universe, IModel model) {
+		System.out.println("\n=== [Kodkod] Universe ===");
+
+		// TypeAtoms (Integer, String, Boolean, Enum)
+		Set<TypeAtoms> typeAtoms = new LinkedHashSet<TypeAtoms>(model.enumTypes());
+		typeAtoms.addAll(model.typeFactory().typeAtoms());
+		for (TypeAtoms ta : typeAtoms) {
+			Set<Object> atoms = ta.atoms();
+			if (!atoms.isEmpty()) {
+				System.out.println("  [Type]  " + ta.name() + " -> " + atoms);
+			}
+			if (ta.isInteger()) {
+				Collection<Object> strAtoms = ((IntegerType) ta).toStringAtoms();
+				if (!strAtoms.isEmpty()) {
+					System.out.println("  [Type]  Integer(str) -> " + strAtoms);
+				}
+			}
+		}
+
+		// Tong so atom
+		List<Object> allAtoms = new ArrayList<>();
+		universe.forEach(allAtoms::add);
+		System.out.println("  => Total atoms: " + allAtoms.size() + " " + allAtoms);
 	}
 
 	// OLD: Used with standard Solver

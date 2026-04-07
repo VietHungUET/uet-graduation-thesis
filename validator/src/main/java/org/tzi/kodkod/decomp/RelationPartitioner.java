@@ -43,7 +43,9 @@ public class RelationPartitioner {
 
     /**
      * Partitions relations based on the dependency graph.
-     * 
+     * Relations with the <b>maximum out-degree</b> are placed in Rr (remainder).
+     * All other relations go to Rp (partial).
+     *
      * @param graph The dependency graph
      * @return PartitionResult containing Rp and remainder sets
      */
@@ -51,16 +53,29 @@ public class RelationPartitioner {
         Set<Relation> partialRelations = new HashSet<>();
         Set<Relation> remainderRelations = new HashSet<>();
 
+        if (graph.getAllRelations().isEmpty()) {
+            return new PartitionResult(partialRelations, remainderRelations, 0);
+        }
+
+        // Find the maximum out-degree in the graph
+        int maxOutDegree = 0;
         for (Relation r : graph.getAllRelations()) {
-            int outDegree = graph.getOutDegree(r);
-            if (outDegree <= threshold) {
-                partialRelations.add(r);
-            } else {
-                remainderRelations.add(r);
+            int deg = graph.getOutDegree(r);
+            if (deg > maxOutDegree) {
+                maxOutDegree = deg;
             }
         }
 
-        return new PartitionResult(partialRelations, remainderRelations, threshold);
+        // Relations with outdegree == max → Rr; all others → Rp
+        for (Relation r : graph.getAllRelations()) {
+            if (graph.getOutDegree(r) == maxOutDegree) {
+                remainderRelations.add(r);
+            } else {
+                partialRelations.add(r);
+            }
+        }
+
+        return new PartitionResult(partialRelations, remainderRelations, maxOutDegree);
     }
 
     /**
