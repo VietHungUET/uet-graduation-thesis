@@ -64,9 +64,11 @@ public class VariableOperationGroup extends OCLOperationGroup {
 
 		if (object_type_end) {
 			returnsSet = false;
+			returnsSequence = false; // reset: association navigation is never a Sequence
 			return srcExpr.eq(undefined).thenElse(undefined, res);
 		} else {
 			returnsSet = true;
+			returnsSequence = false; // reset: association navigation is never a Sequence
 			return srcExpr.eq(undefined).thenElse(undefined_Set, res);
 		}
 	}
@@ -87,6 +89,7 @@ public class VariableOperationGroup extends OCLOperationGroup {
 		res = ConstraintHelper.univRightN(res, totalArity - toRole);
 
 		returnsSet = true;
+		returnsSequence = false; // reset: association navigation is never a Sequence
 		return res;
 	}
 

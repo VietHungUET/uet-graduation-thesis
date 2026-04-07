@@ -47,7 +47,6 @@ public class SequenceOperationGroup extends OCLOperationGroup {
         operationsReturningSequence.add("collect");
         operationsReturningSequence.add("select");
         operationsReturningSequence.add("reject");
-        operationsReturningSequence.add("first");
     }
 
     @Override
@@ -135,7 +134,8 @@ public class SequenceOperationGroup extends OCLOperationGroup {
             System.out.println("##############################################\n");
 
             // Trả về undefined nếu src là undefined hoặc rỗng
-            return src.eq(undefined_Set).or(values.no())
+            // src có arity 2 nên phải so sánh với undefined_Set_2 (arity 2)
+            return src.eq(undefined_Set_2).or(values.no())
                     .thenElse(undefined, minValue);
         } catch (Exception e) {
             System.out.println("❌ ERROR in min(): " + e.getMessage());
@@ -186,7 +186,8 @@ public class SequenceOperationGroup extends OCLOperationGroup {
             System.out.println("##############################################\n");
 
             // Trả về undefined nếu src là undefined hoặc rỗng
-            return src.eq(undefined_Set).or(values.no())
+            // src có arity 2 nên phải so sánh với undefined_Set_2 (arity 2)
+            return src.eq(undefined_Set_2).or(values.no())
                     .thenElse(undefined, maxValue);
         } catch (Exception e) {
             System.out.println("❌ ERROR in max(): " + e.getMessage());
@@ -455,14 +456,20 @@ public class SequenceOperationGroup extends OCLOperationGroup {
 
     // OCL: srcExpr->exists(var | bodyExpr)
     public final Formula exists(Expression src, Formula body, Variable var) {
-        // Simplified implementation - return false for now
-        return src.eq(undefined_Set).not().and(Formula.FALSE);
+        Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
+        // Extract values from (index, value) binary relation
+        Expression values = Expression.UNIV.join(src);
+        return src.eq(undefined_Set_2).not().and(
+                body.forSome(var.oneOf(values)));
     }
 
     // OCL: srcExpr->forAll(var | bodyExpr)
     public final Formula forAll(Expression src, Formula body, Variable var) {
-        // Simplified implementation - return true for now
-        return src.eq(undefined_Set).or(Formula.TRUE);
+        Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
+        // Extract values from (index, value) binary relation
+        Expression values = Expression.UNIV.join(src);
+        return src.eq(undefined_Set_2).or(
+                body.forAll(var.oneOf(values)));
     }
 
     // OCL: srcExpr->one(var | bodyExpr)
@@ -486,6 +493,14 @@ public class SequenceOperationGroup extends OCLOperationGroup {
     // OCL: srcExpr = seqExpr
     public final Formula equality(Expression src, Expression seq) {
         return src.eq(seq);
+    }
+
+    // OCL: srcExpr->asSet() — convert Sequence to Set of values (drop indices)
+    public final Expression asSet(Expression src) {
+        Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
+        // Extract value column from binary (index, value) relation
+        Expression values = Expression.UNIV.join(src);
+        return src.eq(undefined_Set_2).thenElse(undefined_Set, values);
     }
 
     // OCL: srcExpr->includes(elem)
