@@ -1,0 +1,12 @@
+model TestFirst
+
+class Container
+attributes
+  items : Sequence(Integer)
+end
+
+constraints
+
+-- Test first(): phần tử đầu tiên của sequence phải bằng 1
+context Container inv firstItemIsOne:
+  self.items->first() = 3

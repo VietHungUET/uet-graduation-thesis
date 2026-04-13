@@ -74,10 +74,10 @@ public class AttributeConfigurator extends Configurator<IAttribute> {
 			String object;
 			for (String[] specific : specificValues) {
 				object = specific[0];
-				// Generate sequence tuples with auto-incremented indices
+				// Generate sequence tuples with auto-incremented indices (1-based, OCL standard)
 				// specific[1], specific[2], ... are the sequence values
 				for (int i = 1; i < specific.length; i++) {
-					int index = i - 1; // Start from index 0
+					int index = i; // Start from index 1 (1-based)
 					String valueStr = specific[i];
 
 					if (!(valueStr.equals(TypeConstants.UNDEFINED) || valueStr.equals(TypeConstants.UNDEFINED_SET))) {

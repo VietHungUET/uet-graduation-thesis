@@ -59,6 +59,10 @@ public class ValueCreator {
 		}
 	}
 
+	public Value createElementValue(Type elemType, Object atom) {
+		return createValue(elemType, atom);
+	}
+
 	private Value createValue(Type attributeType, Object atom) {
 		if (atom.equals(TypeConstants.UNDEFINED)) {
 			return createUndefinedValue();

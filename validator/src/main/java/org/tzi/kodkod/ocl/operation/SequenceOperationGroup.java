@@ -199,34 +199,16 @@ public class SequenceOperationGroup extends OCLOperationGroup {
     // OCL: srcExpr->first()
     public final Expression first(Expression src) {
         try {
-            System.out.println("\n### SequenceOperationGroup.first() DEBUG ###");
-            System.out.println("src: " + src);
-            System.out.println("src arity: " + src.arity());
 
             Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
-
-            // src is binary (index, value), we want value where index = 0
-            Expression idx0 = IntConstant.constant(0).toExpression();
-
-            // Filter: tuples with index = 0
-            // For binary (index, value), filter is idx0.product(UNIV)
-            Expression filterExpr = idx0.product(Expression.UNIV);
-            System.out.println("filterExpr arity: " + filterExpr.arity());
-
+            Expression idx1 = IntConstant.constant(1).toExpression();
+            Expression filterExpr = idx1.product(Expression.UNIV);
             Expression firstTuples = src.intersection(filterExpr);
-            System.out.println("firstTuples: " + firstTuples);
-            System.out.println("firstTuples arity: " + firstTuples.arity());
-
-            // Project to value column: join from right with UNIV to get value
             Expression firstValue = Expression.UNIV.join(firstTuples);
-            System.out.println("firstValue: " + firstValue);
-            System.out.println("firstValue arity: " + firstValue.arity());
-            System.out.println("##############################################\n");
-
             return src.eq(undefined_Set_2).or(src.no())
                     .thenElse(undefined, firstValue);
         } catch (Exception e) {
-            System.out.println("❌ ERROR in first(): " + e.getMessage());
+            System.out.println("ERROR in first(): " + e.getMessage());
             e.printStackTrace();
             throw e;
         }
@@ -280,21 +262,41 @@ public class SequenceOperationGroup extends OCLOperationGroup {
     }
 
     // OCL: srcExpr->at(index)
+    // Sequence is 1-based: at(1) returns first element, at(2) second, etc.
     public final Expression at(Expression src, Expression index) {
+        System.out.println("\n### SequenceOperationGroup.at() DEBUG ###");
+        System.out.println("src        : " + src);
+        System.out.println("src arity  : " + src.arity());
+        System.out.println("index      : " + index);
+        System.out.println("index arity: " + index.arity());
+
         Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
 
         // src is binary (index, value)
-        // Filter tuples where index = index parameter
-        // For binary (index, value), filter is index.product(UNIV)
-        Expression tuplesAtIndex = src.intersection(
-                index.product(Expression.UNIV));
+        // Filter: keep only tuples whose index column matches the given index
+        Expression filterExpr = index.product(Expression.UNIV);
+        System.out.println("filterExpr        : " + filterExpr);
+        System.out.println("filterExpr arity  : " + filterExpr.arity());
 
-        // Project to value column: join from right with UNIV to get value
-        Expression value = tuplesAtIndex.join(Expression.UNIV);
+        Expression tuplesAtIndex = src.intersection(filterExpr);
+        System.out.println("tuplesAtIndex     : " + tuplesAtIndex);
+        System.out.println("tuplesAtIndex arity: " + tuplesAtIndex.arity());
 
-        return src.eq(undefined_Set_2).or(index.eq(undefined)).or(tuplesAtIndex.no())
+        // Project to value column: UNIV.join(tuplesAtIndex) → value (arity 1)
+        // (NOT tuplesAtIndex.join(UNIV) which would give the index column)
+        Expression value = Expression.UNIV.join(tuplesAtIndex);
+        System.out.println("value             : " + value);
+        System.out.println("value arity       : " + value.arity());
+
+        Expression result = src.eq(undefined_Set_2).or(index.eq(undefined)).or(tuplesAtIndex.no())
                 .thenElse(undefined, value);
+        System.out.println("result (full expr): " + result);
+        System.out.println("##########################################\n");
+
+        return result;
     }
+
+
 
     // OCL: srcExpr->indexOf(elem)
     public final Expression indexOf(Expression src, Expression elem) {

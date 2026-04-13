@@ -1,0 +1,15 @@
+model TestAt
+
+class Container
+attributes
+  items : Sequence(Integer)
+end
+
+constraints
+
+-- at(1) phải bằng 10, at(2) phải bằng 20
+context Container inv atIndex1:
+  self.items->at(1) = 9
+
+context Container inv atIndex2:
+  self.items->at(2) = 15
