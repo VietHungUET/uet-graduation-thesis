@@ -1,0 +1,12 @@
+model SequenceAppendExample
+
+class Student
+attributes
+    scores: Sequence(Integer)
+end
+
+constraints
+
+-- Test: append(5) luon tra ve sequence co phan tu cuoi la 5
+context Student inv appendLast:
+    self.scores->append(5)->last() = 5

@@ -1,0 +1,13 @@
+model TestLast
+
+class Container
+attributes
+  items : Sequence(Integer)
+end
+
+constraints
+
+-- last() phải trả về phần tử cuối cùng
+context Container inv lastItemIs7:
+  self.items->last() = 7
+

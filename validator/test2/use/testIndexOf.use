@@ -1,0 +1,12 @@
+model TestIndexOf
+
+class Container
+attributes
+    items : Sequence(Integer)
+end
+
+constraints
+
+-- indexOf(7) phai bang 2 (sequence la {3, 7, 5})
+context Container inv indexOfIs2:
+    self.items->indexOf(7) = 2
