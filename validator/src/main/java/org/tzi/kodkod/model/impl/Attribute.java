@@ -162,11 +162,9 @@ public class Attribute extends ModelElement implements IAttribute {
 			Relation undefinedSet = model.typeFactory().undefinedSetType().relation();
 			formula = undefinedSet.in(c.join(relation)).implies(c.join(relation).one()).forAll(c.oneOf(ownerRelation));
 		} else if (type.isSequence()) {
-			// For Sequence: each object has a binary relation (index -> value)
-			// The relation structure is already captured by the binary relation
-			// No specific multiplicity constraint needed here as sequences can be empty or
-			// have multiple elements
-			formula = Formula.TRUE;
+			Expression slice = c.join(relation); // binary (Index, Value) for object c
+			Formula functional = slice.transpose().join(slice).in(Expression.IDEN);
+			formula = functional.forAll(c.oneOf(ownerRelation));
 		} else {
 			formula = c.join(relation).one().forAll(c.oneOf(ownerRelation));
 		}

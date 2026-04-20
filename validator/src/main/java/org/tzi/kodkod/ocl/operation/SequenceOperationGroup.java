@@ -262,54 +262,84 @@ public class SequenceOperationGroup extends OCLOperationGroup {
     }
 
     // OCL: srcExpr->at(index)
-    // Sequence is 1-based: at(1) returns first element, at(2) second, etc.
     public final Expression at(Expression src, Expression index) {
-        System.out.println("\n### SequenceOperationGroup.at() DEBUG ###");
-        System.out.println("src        : " + src);
-        System.out.println("src arity  : " + src.arity());
-        System.out.println("index      : " + index);
-        System.out.println("index arity: " + index.arity());
-
         Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
-
-        // src is binary (index, value)
-        // Filter: keep only tuples whose index column matches the given index
         Expression filterExpr = index.product(Expression.UNIV);
-        System.out.println("filterExpr        : " + filterExpr);
-        System.out.println("filterExpr arity  : " + filterExpr.arity());
-
         Expression tuplesAtIndex = src.intersection(filterExpr);
-        System.out.println("tuplesAtIndex     : " + tuplesAtIndex);
-        System.out.println("tuplesAtIndex arity: " + tuplesAtIndex.arity());
-
-        // Project to value column: UNIV.join(tuplesAtIndex) → value (arity 1)
-        // (NOT tuplesAtIndex.join(UNIV) which would give the index column)
         Expression value = Expression.UNIV.join(tuplesAtIndex);
-        System.out.println("value             : " + value);
-        System.out.println("value arity       : " + value.arity());
 
         Expression result = src.eq(undefined_Set_2).or(index.eq(undefined)).or(tuplesAtIndex.no())
                 .thenElse(undefined, value);
-        System.out.println("result (full expr): " + result);
-        System.out.println("##########################################\n");
 
         return result;
     }
 
-
-
     // OCL: srcExpr->indexOf(elem)
+    // Returns the 1-based index of the FIRST occurrence of elem in src.
+    // Returns undefined if elem is not found or either argument is undefined.
+    //
+    // src is binary (index, value).
+    // Strategy:
+    // 1. candidateIndices = { i | i.join(src) ∩ {elem} ≠ ∅ }
+    // i.e., all indices whose value equals elem.
+    // 2. result = the minimum index in candidateIndices.
+    // 3. Return undefined if candidateIndices is empty or src/elem is undefined.
     public final Expression indexOf(Expression src, Expression elem) {
-        // Simplified implementation - return undefined for now
-        return src.eq(undefined_Set).or(elem.eq(undefined)).thenElse(undefined, undefined);
+        Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
+
+        // All indices in the sequence
+        Expression indices = src.join(Expression.UNIV); // (index) column, arity 1
+
+        // Variable over indices
+        Variable i = Variable.unary("idx_io");
+        Variable j = Variable.unary("idx_io2");
+
+        // Condition: the value at index i equals elem
+        // i.join(src) gives the value(s) at index i (arity 1)
+        // We check that elem is in that set
+        Formula iMatchesElem = elem.in(i.join(src));
+
+        // Set of candidate indices: { i ∈ indices | value_at(i) = elem }
+        Expression candidateIndices = iMatchesElem.comprehension(i.oneOf(indices)); // arity 1
+
+        // Minimum candidate index: { i ∈ candidateIndices | ∀ j ∈ candidateIndices: i ≤
+        // j }
+        Formula isMin = i.sum().lte(j.sum()).forAll(j.oneOf(candidateIndices));
+        Expression minIndex = isMin.comprehension(i.oneOf(candidateIndices)); // arity 1
+
+        // Guard: undefined if src is undefined, elem is undefined, or elem not found
+        return src.eq(undefined_Set_2)
+                .or(elem.eq(undefined))
+                .or(candidateIndices.no())
+                .thenElse(undefined, minIndex);
     }
 
     // OCL: srcExpr->append(elem)
+    // Appends elem to the END of the sequence.
+    // src is binary (index, value), 1-based.
+    // New tuple: (maxIndex + 1, elem)
     public final Expression append(Expression src, Expression elem) {
-        // Simplified implementation - just add the element
-        Expression newTuple = Expression.UNIV.product(Expression.UNIV).product(elem);
-        return src.eq(undefined_Set).or(elem.eq(undefined)).thenElse(undefined_Set,
-                src.union(newTuple));
+        Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
+
+        // Find maxIndex: same comprehension pattern as last()
+        Variable maxIdx = Variable.unary("maxIdx_app");
+        Variable idx = Variable.unary("idx_app");
+        Expression indices = src.join(Expression.UNIV); // index column (arity 1)
+        Expression maxIndex = maxIdx.sum().gte(idx.sum())
+                .forAll(idx.oneOf(indices))
+                .comprehension(maxIdx.oneOf(indices)); // arity 1
+
+        // New index = maxIndex + 1
+        Expression newIndex = maxIndex.sum().plus(IntConstant.constant(1)).toExpression(); // arity 1
+
+        // New binary tuple: (newIndex, elem) -- arity 2
+        Expression newTuple = newIndex.product(elem);
+
+        // Append: src ∪ {newTuple}
+        Expression appended = src.union(newTuple);
+
+        return src.eq(undefined_Set_2).or(elem.eq(undefined))
+                .thenElse(undefined_Set_2, appended);
     }
 
     // OCL: srcExpr->prepend(elem)
