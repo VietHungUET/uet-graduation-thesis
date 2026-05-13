@@ -166,6 +166,102 @@ public class DecomposedKodkodSolver {
         SliceResult slice = FormulaSlicer.slice(formula, partialRelations);
         Formula partialFormula = slice.getPartialFormula();
 
+        // Relation Pulling Mechanism: Ensure Rp has at least one constraint
+        if (slice.getPartialConjuncts().isEmpty() && !slice.getRemainderConjuncts().isEmpty()) {
+            System.out.println("\n[PullingMechanism] Rp contains no constraints! Triggering relation pull...");
+
+            // 1. Gather candidates (fv of each remainder conjunct)
+            java.util.List<java.util.Set<Relation>> candidates = new java.util.ArrayList<>();
+            for (Formula f : slice.getRemainderConjuncts()) {
+                java.util.Set<Relation> fv = org.tzi.kodkod.decomp.FormulaSlicer.collectRelations(f);
+                if (!fv.isEmpty()) {
+                    candidates.add(fv);
+                }
+            }
+
+            // 2. Rule 1: Filter arity >= 3
+            java.util.List<java.util.Set<Relation>> filtered = new java.util.ArrayList<>();
+            for (java.util.Set<Relation> c : candidates) {
+                boolean hasHighArity = false;
+                for (Relation r : c) {
+                    if (r.arity() >= 3) {
+                        hasHighArity = true;
+                        break;
+                    }
+                }
+                if (!hasHighArity) {
+                    filtered.add(c);
+                }
+            }
+
+            if (filtered.isEmpty() && !candidates.isEmpty()) {
+                System.out.println(
+                        "[PullingMechanism] All candidates have arity >= 3. Reverting filter (Rule 1 fallback).");
+                filtered = candidates;
+            }
+
+            // 3. Calculate Cost and apply Rule 2: Min Cost
+            int minCost = Integer.MAX_VALUE;
+            for (java.util.Set<Relation> c : filtered) {
+                int cost = 0;
+                for (Relation r : c) {
+                    if (!partialRelations.contains(r)) {
+                        cost++;
+                    }
+                }
+                if (cost > 0 && cost < minCost) {
+                    minCost = cost;
+                }
+            }
+
+            java.util.List<java.util.Set<Relation>> minCostCandidates = new java.util.ArrayList<>();
+            for (java.util.Set<Relation> c : filtered) {
+                int cost = 0;
+                for (Relation r : c) {
+                    if (!partialRelations.contains(r)) {
+                        cost++;
+                    }
+                }
+                if (cost == minCost) {
+                    minCostCandidates.add(c);
+                }
+            }
+
+            // 4. Rule 3: Min Size
+            java.util.Set<Relation> bestCandidate = null;
+            int minSize = Integer.MAX_VALUE;
+            for (java.util.Set<Relation> c : minCostCandidates) {
+                if (c.size() < minSize) {
+                    minSize = c.size();
+                    bestCandidate = c;
+                }
+            }
+
+            if (bestCandidate != null) {
+                System.out.println("[PullingMechanism] Selected candidate with Cost=" + minCost + ", Size=" + minSize);
+
+                // 5. Pull relations and dependencies
+                java.util.Set<Relation> toPull = new java.util.HashSet<>();
+                for (Relation r : bestCandidate) {
+                    if (!partialRelations.contains(r)) {
+                        toPull.add(r);
+                        toPull.addAll(depGraph.getTransitiveDependencies(r));
+                    }
+                }
+
+                for (Relation r : toPull) {
+                    if (remainderRelations.remove(r)) {
+                        partialRelations.add(r);
+                        System.out.println("  -> Pulled to Rp: " + r.name());
+                    }
+                }
+
+                // Re-slice with updated Rp
+                slice = FormulaSlicer.slice(formula, partialRelations);
+                partialFormula = slice.getPartialFormula();
+            }
+        }
+
         // Step 4: Create partial bounds (only Rp relations)
         Bounds partialBounds = createPartialBounds(bounds, partialRelations);
 
@@ -293,8 +389,6 @@ public class DecomposedKodkodSolver {
                 System.out.println("  [Model] " + r.name());
             }
 
-            // Them canh phu thuoc chi giua cac model relations
-            // (bo qua phu thuoc toi cac type relations)
             Map<Relation, Set<Relation>> allDeps = symbolicManager.getAllDependencies();
             for (Map.Entry<Relation, Set<Relation>> entry : allDeps.entrySet()) {
                 Relation target = entry.getKey();
@@ -307,6 +401,76 @@ public class DecomposedKodkodSolver {
                     }
                     // Bo qua phu thuoc den type relations (String, Boolean, Undefined...)
                 }
+            }
+
+            // [THESIS] Theo yeu cau: Nối String với các relation phụ thuộc nó
+            Relation stringRel = null;
+            for (Relation r : bounds.relations()) {
+                if ("String".equals(r.name())) {
+                    stringRel = r;
+                    break;
+                }
+            }
+            if (stringRel != null) {
+                kodkod.instance.TupleSet stringTuples = bounds.upperBound(stringRel);
+                if (stringTuples != null && !stringTuples.isEmpty()) {
+                    for (Relation r : modelRels) {
+                        if (r == stringRel)
+                            continue;
+                        kodkod.instance.TupleSet ub = bounds.upperBound(r);
+                        if (ub != null) {
+                            boolean usesString = false;
+                            java.util.Iterator<kodkod.instance.Tuple> it = ub.iterator();
+                            while (it.hasNext() && !usesString) {
+                                kodkod.instance.Tuple t = it.next();
+                                // Check if any atom in the tuple belongs to the String relation
+                                for (int i = 0; i < t.arity(); i++) {
+                                    Object atom = t.atom(i);
+                                    if (stringTuples.contains(bounds.universe().factory().tuple(atom))) {
+                                        usesString = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (usesString) {
+                                graph.addDependency(r, stringRel);
+                                System.out.println("  " + r.name() + " -> String ");
+                            }
+                        }
+                    }
+                }
+            }
+
+            // [THESIS] Theo yeu cau: Tạo relation giả Integer để xây dependency graph
+            Relation fakeIntegerRel = Relation.unary("Integer");
+            boolean integerUsed = false;
+            for (Relation r : modelRels) {
+                kodkod.instance.TupleSet ub = bounds.upperBound(r);
+                if (ub != null) {
+                    boolean usesInteger = false;
+                    java.util.Iterator<kodkod.instance.Tuple> it = ub.iterator();
+                    while (it.hasNext() && !usesInteger) {
+                        kodkod.instance.Tuple t = it.next();
+                        for (int i = 0; i < t.arity(); i++) {
+                            Object atom = t.atom(i);
+                            // Trong Kodkod USE validator, so nguyen thuong la java.lang.Integer hoac String
+                            // bieu dien so
+                            if (atom instanceof Integer
+                                    || (atom instanceof String && ((String) atom).matches("-?\\d+"))) {
+                                usesInteger = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (usesInteger) {
+                        integerUsed = true;
+                        graph.addDependency(r, fakeIntegerRel);
+                        System.out.println("  " + r.name() + " -> Integer ");
+                    }
+                }
+            }
+            if (integerUsed) {
+                graph.addRelation(fakeIntegerRel);
             }
 
             System.out.println("=================================\n");

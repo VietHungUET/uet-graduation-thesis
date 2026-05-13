@@ -78,24 +78,31 @@ public class FormulaSlicer {
     public static class SliceResult {
         private final Formula partialFormula;
         private final Formula remainderFormula;
+        private final List<Formula> partialConjuncts;
+        private final List<Formula> remainderConjuncts;
 
-        public SliceResult(Formula partialFormula, Formula remainderFormula) {
+        public SliceResult(Formula partialFormula, Formula remainderFormula, 
+                           List<Formula> partialConjuncts, List<Formula> remainderConjuncts) {
             this.partialFormula = partialFormula;
             this.remainderFormula = remainderFormula;
+            this.partialConjuncts = partialConjuncts;
+            this.remainderConjuncts = remainderConjuncts;
         }
 
-        /**
-         * @return Formula containing only conjuncts over partial relations
-         */
         public Formula getPartialFormula() {
             return partialFormula;
         }
 
-        /**
-         * @return Formula containing conjuncts that reference remainder relations
-         */
         public Formula getRemainderFormula() {
             return remainderFormula;
+        }
+
+        public List<Formula> getPartialConjuncts() {
+            return partialConjuncts;
+        }
+
+        public List<Formula> getRemainderConjuncts() {
+            return remainderConjuncts;
         }
 
         /**
@@ -120,7 +127,7 @@ public class FormulaSlicer {
         }
         if (partialRelations == null || partialRelations.isEmpty()) {
             // If no partial relations, everything goes to remainder
-            return new SliceResult(Formula.TRUE, formula);
+            return new SliceResult(Formula.TRUE, formula, java.util.Collections.emptyList(), FormulaFlattener.flatten(formula));
         }
 
         // Step 1: Flatten to NNF and break nested ANDs into a flat conjunct list.
@@ -147,7 +154,7 @@ public class FormulaSlicer {
                 + "  -> f1 (Rp-only): " + f1.size()
                 + ",  f2 (uses Rr): " + f2.size());
 
-        return new SliceResult(Formula.and(f1), Formula.and(f2));
+        return new SliceResult(Formula.and(f1), Formula.and(f2), f1, f2);
     }
 
     /**

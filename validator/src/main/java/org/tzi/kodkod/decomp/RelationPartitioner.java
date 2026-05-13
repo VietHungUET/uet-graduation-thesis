@@ -66,13 +66,89 @@ public class RelationPartitioner {
             }
         }
 
-        // Relations with outdegree == max → Rr; all others → Rp
+        // 1. Identify removed nodes: outDegree == maxOutDegree OR arity == 3
+        Set<Relation> removedNodes = new HashSet<>();
+        Set<Relation> subgraphNodes = new HashSet<>();
         for (Relation r : graph.getAllRelations()) {
-            if (graph.getOutDegree(r) == maxOutDegree) {
-                remainderRelations.add(r);
+            if (graph.getOutDegree(r) == maxOutDegree || r.arity() == 3) {
+                removedNodes.add(r);
             } else {
+                subgraphNodes.add(r);
+            }
+        }
+
+        // 2. Build undirected adjacency list for subgraphNodes
+        java.util.Map<Relation, Set<Relation>> undirectedAdj = new java.util.HashMap<>();
+        for (Relation r : subgraphNodes) {
+            undirectedAdj.put(r, new HashSet<>());
+        }
+
+        for (Relation r : subgraphNodes) {
+            for (Relation dep : graph.getDirectDependencies(r)) {
+                if (subgraphNodes.contains(dep)) {
+                    // Add undirected edge between r and dep
+                    undirectedAdj.get(r).add(dep);
+                    undirectedAdj.get(dep).add(r);
+                }
+            }
+        }
+
+        // 3. Find connected components
+        java.util.List<Set<Relation>> components = new java.util.ArrayList<>();
+        Set<Relation> visited = new HashSet<>();
+
+        for (Relation r : subgraphNodes) {
+            if (!visited.contains(r)) {
+                Set<Relation> component = new HashSet<>();
+                java.util.Queue<Relation> queue = new java.util.LinkedList<>();
+                queue.add(r);
+                visited.add(r);
+                component.add(r);
+
+                while (!queue.isEmpty()) {
+                    Relation current = queue.poll();
+                    for (Relation neighbor : undirectedAdj.get(current)) {
+                        if (!visited.contains(neighbor)) {
+                            visited.add(neighbor);
+                            component.add(neighbor);
+                            queue.add(neighbor);
+                        }
+                    }
+                }
+                components.add(component);
+            }
+        }
+
+        // 4. Find the largest component
+        Set<Relation> largestComponent = new HashSet<>();
+        for (Set<Relation> component : components) {
+            if (component.size() > largestComponent.size()) {
+                largestComponent = component;
+            }
+        }
+
+        // 5. Assign to Rp and Rr
+        partialRelations.addAll(largestComponent);
+        
+        // Bắt buộc đưa các Type Relations cơ bản vào Tập cơ sở (Rp)
+        // Nếu không, Slicer sẽ đẩy mọi constraint có String/Boolean sang Pha 2
+        for (Relation r : graph.getAllRelations()) {
+            String name = r.name();
+            if (name.equals("String") || name.equals("Boolean") || 
+                name.equals("Undefined") || name.equals("Undefined_Set") || 
+                name.equals("Real") || name.equals("Integer")) {
                 partialRelations.add(r);
             }
+        }
+
+        remainderRelations.addAll(graph.getAllRelations());
+        remainderRelations.removeAll(partialRelations);
+
+        System.out.println("[RelationPartitioner] Removed nodes (maxDeg=" + maxOutDegree + " or arity=3): " + removedNodes.size());
+        System.out.println("[RelationPartitioner] Subgraph nodes: " + subgraphNodes.size());
+        System.out.println("[RelationPartitioner] Connected components found: " + components.size());
+        for (int i = 0; i < components.size(); i++) {
+            System.out.println("  - Component " + (i+1) + " size: " + components.get(i).size());
         }
 
         return new PartitionResult(partialRelations, remainderRelations, maxOutDegree);
