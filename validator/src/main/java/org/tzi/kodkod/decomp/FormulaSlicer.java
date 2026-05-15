@@ -117,11 +117,12 @@ public class FormulaSlicer {
     /**
      * Slices the given formula based on the partial relations set.
      * 
-     * @param formula          The formula to slice (typically model.constraints())
-     * @param partialRelations Set of relations belonging to the partial problem
+     * @param formula            The formula to slice (typically model.constraints())
+     * @param partialRelations   Set of relations belonging to the partial problem
+     * @param remainderRelations Set of relations belonging to the remainder problem
      * @return SliceResult containing both partial and remainder formulas
      */
-    public static SliceResult slice(Formula formula, Set<Relation> partialRelations) {
+    public static SliceResult slice(Formula formula, Set<Relation> partialRelations, Set<Relation> remainderRelations) {
         if (formula == null) {
             throw new IllegalArgumentException("Formula cannot be null");
         }
@@ -143,7 +144,14 @@ public class FormulaSlicer {
         // Step 2: classify each flat conjunct
         for (Formula f : flatConjuncts) {
             Set<Relation> rs = collectRelations(f);
-            if (partialRelations.containsAll(rs)) {
+            boolean usesRemainder = false;
+            for (Relation r : rs) {
+                if (remainderRelations != null && remainderRelations.contains(r)) {
+                    usesRemainder = true;
+                    break;
+                }
+            }
+            if (!usesRemainder) {
                 f1.add(f);
             } else {
                 f2.add(f);
@@ -160,13 +168,9 @@ public class FormulaSlicer {
     /**
      * Convenience method that returns Entry for compatibility with Pardinus-style
      * code.
-     * 
-     * @param formula          The formula to slice
-     * @param partialRelations Set of partial relations
-     * @return Entry with partial formula as key, remainder as value
      */
-    public static Entry<Formula, Formula> sliceAsEntry(Formula formula, Set<Relation> partialRelations) {
-        return slice(formula, partialRelations).asEntry();
+    public static Entry<Formula, Formula> sliceAsEntry(Formula formula, Set<Relation> partialRelations, Set<Relation> remainderRelations) {
+        return slice(formula, partialRelations, remainderRelations).asEntry();
     }
 
     /**

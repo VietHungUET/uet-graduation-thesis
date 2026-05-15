@@ -163,8 +163,13 @@ public class DecomposedKodkodSolver {
         System.out.println("Decomposition applicable! Starting 2-phase solving...\n");
 
         // Step 3: Slice formula
-        SliceResult slice = FormulaSlicer.slice(formula, partialRelations);
+        SliceResult slice = FormulaSlicer.slice(formula, partialRelations, remainderRelations);
         Formula partialFormula = slice.getPartialFormula();
+
+        System.out.println("\n[FormulaSlicer DEBUG] Constraints in f1 (Rp-only):");
+        for (Formula f : slice.getPartialConjuncts()) {
+            System.out.println("  " + f);
+        }
 
         // Relation Pulling Mechanism: Ensure Rp has at least one constraint
         if (slice.getPartialConjuncts().isEmpty() && !slice.getRemainderConjuncts().isEmpty()) {
@@ -257,7 +262,7 @@ public class DecomposedKodkodSolver {
                 }
 
                 // Re-slice with updated Rp
-                slice = FormulaSlicer.slice(formula, partialRelations);
+                slice = FormulaSlicer.slice(formula, partialRelations, remainderRelations);
                 partialFormula = slice.getPartialFormula();
             }
         }
@@ -294,6 +299,16 @@ public class DecomposedKodkodSolver {
             System.out.println("[CNF] Clauses (Phase 1): " + phase1Solution.stats().clauses()
                     + "  [" + phase1Solution.outcome() + "]"
                     + (phase1Solution.stats().clauses() == 0 ? "  <- trivially solved, no CNF generated" : ""));
+
+            // DEBUG: print the actual Phase 1 instance
+            if (phase1Solution.instance() != null) {
+                System.out.println("[Phase 1 Instance DEBUG]:");
+                for (Relation r : partialRelations) {
+                    if (phase1Solution.instance().contains(r)) {
+                        System.out.println("  " + r.name() + " = " + phase1Solution.instance().tuples(r));
+                    }
+                }
+            }
 
             // Step 7: Create integrated bounds using partial solution
             Instance partialInstance = phase1Solution.instance();
@@ -345,7 +360,24 @@ public class DecomposedKodkodSolver {
 
             // Phase 2 UNSAT: This configuration cannot be extended
             // Continue loop to try next configuration (iterator automatically adds ¬p)
-            System.out.println("Phase 2: UNSAT (backtracking...)\n");
+            System.out.println("Phase 2: UNSAT (backtracking...)");
+            if (phase2Solution.outcome() == kodkod.engine.Solution.Outcome.TRIVIALLY_UNSATISFIABLE) {
+                System.out.println("  Reason: Bounds conflict with constraints (e.g., cardinality constraints) or formula evaluates to false statically.");
+                // Print any obviously invalid bounds in this config
+                for (kodkod.ast.Relation r : integratedBounds.relations()) {
+                    kodkod.instance.TupleSet lb = integratedBounds.lowerBound(r);
+                    kodkod.instance.TupleSet ub = integratedBounds.upperBound(r);
+                    if (lb != null && ub != null && lb.size() > ub.size()) {
+                        System.out.println("  -> Bounds error on " + r.name() + ": lb size (" + lb.size() + ") > ub size (" + ub.size() + ")");
+                    }
+                }
+            }
+            if (phase2Solution.proof() != null) {
+                System.out.println("  [Proof Core]: " + phase2Solution.proof().highLevelCore());
+            } else if (phase2Solution.outcome() != kodkod.engine.Solution.Outcome.TRIVIALLY_UNSATISFIABLE) {
+                System.out.println("  [Proof]: null (Translation logging might be disabled in options)");
+            }
+            System.out.println();
             lastUnsatSolution = phase2Solution;
         }
 
@@ -462,7 +494,7 @@ public class DecomposedKodkodSolver {
                             }
                         }
                     }
-                    if (usesInteger) {
+                    if (usesInteger && r.arity() >= 3) {
                         integerUsed = true;
                         graph.addDependency(r, fakeIntegerRel);
                         System.out.println("  " + r.name() + " -> Integer ");

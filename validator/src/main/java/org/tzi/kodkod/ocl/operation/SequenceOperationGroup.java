@@ -59,10 +59,16 @@ public class SequenceOperationGroup extends OCLOperationGroup {
         return operationsReturningSequence.contains(opName);
     }
 
+    @Override
+    public boolean returnsSet(String opName) {
+        return "asSet".equals(opName);
+    }
+
     // OCL: srcExpr->asSequence()
     public final Expression asSequence(Expression src) {
         return src;
     }
+
 
     // OCL: srcExpr->size()
     public final Expression size(Expression src) {

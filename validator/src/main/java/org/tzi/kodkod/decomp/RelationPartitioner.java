@@ -119,11 +119,35 @@ public class RelationPartitioner {
             }
         }
 
-        // 4. Find the largest component
+        // 4. Find the largest component (prefer non-primitive when all size == 1)
         Set<Relation> largestComponent = new HashSet<>();
-        for (Set<Relation> component : components) {
-            if (component.size() > largestComponent.size()) {
-                largestComponent = component;
+
+        // Check if all components have size == 1
+        boolean allSizeOne = components.stream().allMatch(c -> c.size() == 1);
+
+        if (allSizeOne) {
+            // Prefer a non-primitive component (e.g. Room, Card, Guest)
+            // Primitive types are already hardcoded into Rp, no need to pick them here
+            Set<String> primitiveNames = new HashSet<>(java.util.Arrays.asList(
+                "String", "Boolean", "Undefined", "Undefined_Set", "Real", "Integer"
+            ));
+            for (Set<Relation> component : components) {
+                Relation r = component.iterator().next();
+                if (!primitiveNames.contains(r.name())) {
+                    largestComponent = component;
+                    break;
+                }
+            }
+            // Fallback: if only primitives remain (shouldn't happen), pick first
+            if (largestComponent.isEmpty() && !components.isEmpty()) {
+                largestComponent = components.get(0);
+            }
+        } else {
+            // Normal case: pick the genuinely largest component
+            for (Set<Relation> component : components) {
+                if (component.size() > largestComponent.size()) {
+                    largestComponent = component;
+                }
             }
         }
 
@@ -145,11 +169,15 @@ public class RelationPartitioner {
         remainderRelations.removeAll(partialRelations);
 
         System.out.println("[RelationPartitioner] Removed nodes (maxDeg=" + maxOutDegree + " or arity=3): " + removedNodes.size());
-        System.out.println("[RelationPartitioner] Subgraph nodes: " + subgraphNodes.size());
+        System.out.println("[RelationPartitioner] Removed: " + removedNodes.stream().map(Relation::name).sorted().collect(java.util.stream.Collectors.joining(", ")));
+        System.out.println("[RelationPartitioner] Subgraph nodes (" + subgraphNodes.size() + "): " + subgraphNodes.stream().map(Relation::name).sorted().collect(java.util.stream.Collectors.joining(", ")));
         System.out.println("[RelationPartitioner] Connected components found: " + components.size());
         for (int i = 0; i < components.size(); i++) {
-            System.out.println("  - Component " + (i+1) + " size: " + components.get(i).size());
+            String names = components.get(i).stream().map(Relation::name).sorted().collect(java.util.stream.Collectors.joining(", "));
+            System.out.println("  - Component " + (i+1) + " size: " + components.get(i).size() + " -> [" + names + "]");
         }
+        System.out.println("[RelationPartitioner] Largest component selected: " + largestComponent.stream().map(Relation::name).sorted().collect(java.util.stream.Collectors.joining(", ")));
+        System.out.println("[RelationPartitioner] Final Rp: " + partialRelations.stream().map(Relation::name).sorted().collect(java.util.stream.Collectors.joining(", ")));
 
         return new PartitionResult(partialRelations, remainderRelations, maxOutDegree);
     }
