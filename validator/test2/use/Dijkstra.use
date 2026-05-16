@@ -83,3 +83,28 @@ context WaitQueue inv StrictPriorityGrant:
             -- Tiến trình đứng đầu phải được ưu tiên cấp khóa nếu khóa được nhả ra
             nextStateHolds->notEmpty() implies nextStateHolds.process->includes(self.queue->first())
         )
+
+-- 5. LUẬT HÀNG ĐỢI RỖNG (isEmpty)
+-- Nếu hàng đợi tại State này là rỗng (không ai đang xếp hàng chờ Mutex),
+-- thì ở State tiếp theo không có tiến trình mới nào được cấp Mutex này.
+-- (Không ai chờ → không ai được nhận khóa theo cơ chế ưu tiên hàng đợi)
+context WaitQueue inv EmptyQueueImpliesNoNewGrant:
+    self.state.nextState->notEmpty() implies
+        self.queue->isEmpty() implies
+            Hold.allInstances()->select(h |
+                h.state = self.state.nextState and h.mutex = self.mutex
+            )->isEmpty()
+
+-- 6. RÀNG BUỘC BUỘC DEADLOCK (ForceDeadlock) — Gây UNSAT
+-- Tiến trình ĐỨNG ĐẦU hàng đợi PHẢI đồng thời đang GIỮ chính Mutex đó.
+-- Mâu thuẫn trực tiếp với HoldNotWaiting:
+--   HoldNotWaiting: "Nếu p đang giữ m thì p KHÔNG được ở trong queue"
+--   ForceDeadlock:  "Nếu queue không rỗng thì first() PHẢI đang giữ m"
+-- → UNSAT khi queue không rỗng (queue_minSize = 1 trong .properties)
+context WaitQueue inv ForceDeadlock:
+    self.queue->notEmpty() implies
+        Hold.allInstances()->exists(h |
+            h.state = self.state and
+            h.mutex = self.mutex and
+            h.process = self.queue->first()
+        )

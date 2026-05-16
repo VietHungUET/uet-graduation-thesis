@@ -37,9 +37,6 @@ association SelectedAssets between
   Asset[*] role selection
 end
 
--- ==========================================
--- CÁC RÀNG BUỘC OCL (INVARIANTS)
--- ==========================================
 constraints
 
 -- 1. RÀNG BUỘC GỐC TỪ ALLOY: 
@@ -52,19 +49,22 @@ context Catalog inv DisjointStates:
 context Catalog inv SelectionMustBeShowing:
   self.selection->notEmpty() implies self.showing->includesAll(self.selection)
 
--- ==========================================
--- RÀNG BUỘC KIỂM THỬ THUẬT TOÁN SEQUENCE CỦA BẠN
--- ==========================================
-
 -- 3. Kiểm thử thuộc tính phần tử (Test logic Sequence liên kết với Set):
 -- Mọi tên file có mặt trong Sequence 'playlist' đều phải là của một Asset đang được hiển thị.
 context Catalog inv PlaylistOnlyShowingAssets:
-  self.playlist->forAll(pName | 
+  self.playlist->asSet()->forAll(pName | 
     self.showing->exists(a | a.name = pName)
   )
+
 
 -- 4. Kiểm thử các hàm xử lý Sequence (size, first, last):
 -- Nếu playlist có từ 2 phần tử trở lên, phần tử đầu tiên và cuối cùng phải khác nhau.
 context Catalog inv PlaylistSequenceOperations:
   self.playlist->size() > 1 implies 
   self.playlist->first() <> self.playlist->last()
+
+-- 5. Kiểm thử excludes():
+-- Tên của các tài sản bị ẩn (hidden) KHÔNG ĐƯỢC xuất hiện trong danh sách phát.
+-- (Tài sản bị ẩn thì không thể đang được phát trong playlist)
+context Catalog inv PlaylistExcludesHiddenAssets:
+  self.hidden->forAll(a | self.playlist->excludes(a.name))

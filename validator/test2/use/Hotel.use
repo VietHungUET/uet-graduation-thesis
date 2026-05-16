@@ -69,20 +69,17 @@ context Room inv KeyHistoryConsistent:
 context Room inv KeyHistoryMinSize:
   self.keyHistory->size() >= 2
 
--- Hai mã khóa liên tiếp trong lịch sử phải khác nhau
--- (mỗi lần check-in THỰC SỰ thay đổi mã khóa)
-context Room inv NoRepeatedConsecutiveKeys:
-  Sequence{1..(self.keyHistory->size() - 1)}->forAll(i |
-    self.keyHistory->at(i) <> self.keyHistory->at(i + 1))
+-- Mã khóa đầu tiên trong lịch sử (mã gốc) phải khác với mã khóa hiện tại.
+-- (Phòng phải đã được cập nhật ít nhất 1 lần kể từ khi lắp đặt)
+-- Sử dụng at(1) để truy cập phần tử đầu tiên của Sequence.
+context Room inv FirstKeyDiffersFromCurrent:
+  self.keyHistory->at(1) <> self.currentKeyId
 
 -- ============================================================
--- BIẾN THỂ UNSAT — NoIntervening (Hệ thống an toàn)
+-- RÀNG BUỘC VỀ KHÁCH (Guest)
 -- ============================================================
--- Mục tiêu: Thêm giả định "NoIntervening" (không có sự kiện xen vào)
--- Kết hợp với việc buộc tồn tại kịch bản xâm nhập trái phép (ForceBadEntry)
--- → Hệ thống bất khả thi (UNSAT) → chứng minh hệ thống AN TOÀN.
 
--- Mọi khách phải đang ở trong phòng (để tránh trivial vacuous satisfaction)
+-- Mọi khách phải đang ở trong phòng
 context Guest inv MustOccupy:
   self.room->notEmpty()
 
@@ -90,21 +87,25 @@ context Guest inv MustOccupy:
 context Guest inv MustHaveCard:
   self.cards->notEmpty()
 
--- BUỘC kịch bản vi phạm: khách ở trong phòng nhưng KHÔNG có thẻ hợp lệ
--- (k2 của mọi thẻ đều # mã khóa hiện tại của phòng)
-context Guest inv ForceBadEntry:
-  self.cards->forAll(c | c.k2 <> self.room.currentKeyId)
-
 -- Thẻ phải gắn với phòng: k1 của thẻ phải có trong lịch sử khóa của phòng
 -- (đảm bảo thẻ được phát ra tại thời điểm nào đó cho phòng này)
 context Guest inv CardLinkedToRoom:
   self.cards->forAll(c | self.room.keyHistory->includes(c.k1))
 
--- GIẢI ĐỊNH NoIntervening:
--- Nếu thẻ (k1, k2) có k1 ∈ history của phòng → k2 PHẢI là mã khóa HIỆN TẠI
--- Không có sự kiện nào xen vào giữa thời điểm phát thẻ và hiện tại
-context Guest inv NoIntervening:
+-- Thứ tự nhân quả trong lịch sử khóa:
+-- Nếu cả mã cũ (k1) và mã mới (k2) của thẻ đều xuất hiện trong lịch sử,
+-- thì vị trí của k1 phải đứng TRƯỚC vị trí của k2.
+-- (Đảm bảo mã khóa cũ được cài trước mã khóa mới — tính nhân quả)
+context Guest inv CardOrderInHistory:
   self.cards->forAll(c |
-    self.room.keyHistory->includes(c.k1) implies
-      self.room.currentKeyId = c.k2)
+    (self.room.keyHistory->includes(c.k1) and
+     self.room.keyHistory->includes(c.k2)) implies
+      self.room.keyHistory->indexOf(c.k1) < self.room.keyHistory->indexOf(c.k2)
+  )
 
+-- Kiểm thử isEmpty() trên Sequence:
+-- Lịch sử khóa của phòng KHÔNG BAO GIỜ là rỗng.
+-- Ràng buộc này gọi trực tiếp Sequence isEmpty() và kiểm tra nó trả về false
+-- đúng với thực tế (mọi phòng đều có ít nhất 1 mã khóa gốc từ khi lắp đặt).
+context Room inv KeyHistoryNeverEmpty:
+  not self.keyHistory->isEmpty()

@@ -1,0 +1,19 @@
+model RecruitmentModel
+
+class Applicant
+attributes
+  name          : String
+  skills        : Set(String)
+  interviewSteps : Sequence(String)
+end
+
+constraints
+
+context Applicant
+inv noEmptySkills:
+  self.skills->notEmpty()
+
+context Applicant
+inv firstStepIsScreen:
+  self.interviewSteps->notEmpty() implies
+    self.interviewSteps->first() = 'Screening'
