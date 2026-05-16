@@ -487,9 +487,17 @@ public class SequenceOperationGroup extends OCLOperationGroup {
         return src.eq(undefined_Set).thenElse(undefined_Set, src);
     }
 
+    public final Expression select(Expression src, Expression body, Variable var) {
+        return select(src, body.eq(booleanTrue), var);
+    }
+
     // OCL: srcExpr->reject(var | bodyExpr)
     public final Expression reject(Expression src, Formula body, Variable var) {
         return select(src, body.not(), var);
+    }
+
+    public final Expression reject(Expression src, Expression body, Variable var) {
+        return reject(src, body.eq(booleanTrue), var);
     }
 
     // OCL: srcExpr->exists(var | bodyExpr)
@@ -501,6 +509,10 @@ public class SequenceOperationGroup extends OCLOperationGroup {
                 body.forSome(var.oneOf(values)));
     }
 
+    public final Formula exists(Expression src, Expression body, Variable var) {
+        return exists(src, body.eq(booleanTrue), var);
+    }
+
     // OCL: srcExpr->forAll(var | bodyExpr)
     public final Formula forAll(Expression src, Formula body, Variable var) {
         Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
@@ -508,6 +520,10 @@ public class SequenceOperationGroup extends OCLOperationGroup {
         Expression values = Expression.UNIV.join(src);
         return src.eq(undefined_Set_2).or(
                 body.forAll(var.oneOf(values)));
+    }
+
+    public final Formula forAll(Expression src, Expression body, Variable var) {
+        return forAll(src, body.eq(booleanTrue), var);
     }
 
     // OCL: srcExpr->one(var | bodyExpr)

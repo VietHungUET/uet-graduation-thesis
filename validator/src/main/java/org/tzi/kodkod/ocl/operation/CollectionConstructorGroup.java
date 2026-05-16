@@ -1,6 +1,8 @@
 package org.tzi.kodkod.ocl.operation;
 
 import kodkod.ast.Expression;
+import kodkod.ast.Formula;
+import kodkod.ast.IntConstant;
 import kodkod.ast.Variable;
 
 import org.apache.log4j.Logger;
@@ -76,12 +78,25 @@ public class CollectionConstructorGroup extends OCLOperationGroup {
 	}
 
 	public Expression sequenceLiteral(Expression... elem) {
-		LOG.warn(LogMessages.unsupportedCollectionWarning("sequences"));
-		return setLiteral(elem);
+		if (elem.length == 0) {
+			return Expression.NONE;
+		}
+
+		if (elem.length == 1) {
+			final Variable i = Variable.unary("seqIdx");
+			final Variable v = Variable.unary("seqVal");
+			return i.eq(v).comprehension(i.oneOf(elem[0]).and(v.oneOf(elem[0])));
+		}
+
+		Expression sequence = Expression.NONE;
+		for (int i = 0; i < elem.length; i++) {
+			sequence = sequence.union(IntConstant.constant(i + 1).toExpression().product(elem[i]));
+		}
+
+		return undefined_Set.in(Expression.UNIV.join(sequence)).thenElse(undefined_Set.product(Expression.UNIV), sequence);
 	}
 
 	public Expression sequenceLiteral() {
-		LOG.warn(LogMessages.unsupportedCollectionWarning("sequences"));
-		return setLiteral();
+		return Expression.NONE;
 	}
 }
