@@ -1,29 +1,83 @@
+# USE Model Validator
+
+This project contains a modified USE 7.1.0 build and a custom validator plugin
+with Sequence support.
+
 ## Requirements
 
-- USE version 3.1.0 or greater is required for this plugin
+- JDK 17
+- Maven 3.x
 
-## Installation
+## Build
 
-- Install the kodkod jar file to the local repository:
-  * using the external maven:
-    ```sh
-    cd use-validator
-    ./init.sh           # (or init.cmd on Windows)
-    ```
-  * Or using Maven inside Eclipse IDE, input the Goals text-box with the following value: 
-    ```sh
-        install:install-file -Dfile=${project.basedir}/lib/kodkod.jar \
-                         -DgroupId=kodkod \
-                         -DartifactId=kodkod \
-                         -Dversion=1.0 \
-                         -Dpackaging=jar 
+Install the bundled Kodkod dependency once:
 
-- Copy the use-validator.jar into the lib/plugins directory of USE (or using a soft link on linux). For a more detailed, read the USE README.
+```sh
+cd validator
+./init.sh
+```
 
-## Usage
+On Windows:
 
-- Open USE specification.
-  
-- In the main menu select "Plugins" -> "Model Validator"
-  
-- Select the options to configure the validation ...
+```bat
+cd validator
+init.cmd
+```
+
+Then build the whole project from the repository root:
+
+```sh
+cd ..
+mvn clean install
+```
+
+For a faster build without running tests:
+
+```sh
+mvn clean install -DskipTests
+```
+
+The USE distribution is generated at:
+
+```text
+use-main/use-assembly/target/use-7.1.0.zip
+```
+
+The latest validator jar is included automatically in `lib/plugins`.
+
+## Run
+
+Windows:
+
+```bat
+use-main\use-assembly\target\use-7.1.0\use-7.1.0\bin\use.bat
+```
+
+Linux/macOS:
+
+```sh
+./use-main/use-assembly/target/use-7.1.0/use-7.1.0/bin/use
+```
+
+Open a `.use` model, then run the Model Validator from the `Plugins` menu.
+
+## Sample Models
+
+Models:
+
+```text
+validator/test2/use
+```
+
+Validator properties:
+
+```text
+validator/test2/properties
+```
+
+Example:
+
+```text
+validator/test2/use/Hotel.use
+validator/test2/properties/Hotel1.properties
+```

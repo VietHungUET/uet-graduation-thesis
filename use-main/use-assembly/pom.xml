@@ -12,6 +12,14 @@
     <packaging>pom</packaging>
     <artifactId>use-assembly</artifactId>
 
+    <dependencies>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>validator</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
+
     <build>
         <sourceDirectory>src</sourceDirectory>
 

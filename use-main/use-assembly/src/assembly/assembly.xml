@@ -73,6 +73,17 @@
             <includes>
                 <include>*</include>
             </includes>
+            <excludes>
+                <exclude>use-validator*.jar</exclude>
+            </excludes>
+        </fileSet>
+        <fileSet>
+            <!-- Current validator plugin built from the validator module. -->
+            <directory>${project.basedir}/../../validator/target</directory>
+            <outputDirectory>lib/plugins</outputDirectory>
+            <includes>
+                <include>use-validator_jar-dependencies.jar</include>
+            </includes>
         </fileSet>
     </fileSets>
 </assembly>
