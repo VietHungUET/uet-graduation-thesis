@@ -21,23 +21,6 @@ public class OCLMethodInvoker {
 	private int collectionType;
 	private Node object;
 
-	// DEPRECATED METHOD - Kept for reference but no longer used
-	// This method was replaced because it cannot handle SEQUENCE type (only SET vs
-	// OBJECT)
-	// All code has been refactored to use the new invoke() method with int
-	// collectionType parameter
-	/*
-	 * @Deprecated
-	 * public void invoke(String opName, List<Object> arguments, boolean
-	 * setOperation, boolean object_type_nav) {
-	 * // WARNING: This method cannot handle SEQUENCE type!
-	 * // It only distinguishes between SET and OBJECT.
-	 * int collectionType = setOperation ? CollectionType.SET :
-	 * CollectionType.OBJECT;
-	 * invoke(opName, arguments, collectionType, object_type_nav);
-	 * }
-	 */
-
 	/**
 	 * Search the operation method using the OCLOperationLoader and calls the
 	 * transformation method.
@@ -65,13 +48,6 @@ public class OCLMethodInvoker {
 				replaceSublistWithVariableArray(arguments, operationLoader.getFirstArrayIndex());
 			} else if (operationLoader.needExpressionArray()) {
 				replaceSublistWithExpressionArray(arguments, operationLoader.getFirstArrayIndex());
-			}
-
-			System.out
-					.println("DEBUG: Invoking method " + method.getName() + " with " + arguments.size() + " arguments");
-			for (int i = 0; i < arguments.size(); i++) {
-				System.out.println("  arg[" + i + "] = " + arguments.get(i) + " (type: "
-						+ arguments.get(i).getClass().getSimpleName() + ")");
 			}
 
 			object = (Node) method.invoke(operationLoader.getOperationClass(), arguments.toArray());

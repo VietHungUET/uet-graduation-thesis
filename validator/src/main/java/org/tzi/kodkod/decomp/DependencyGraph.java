@@ -12,18 +12,7 @@ import java.util.Set;
 
 import kodkod.ast.Relation;
 
-/**
- * Dependency graph between relations based on symbolic bounds.
- * 
- * If relation A's symbolic bound references relation B, then A depends on B.
- * This graph is used to:
- * 1. Determine resolution order (topological sort)
- * 2. Partition relations for decomposed solving
- * 
- * Based on Pardinus PardinusBounds.SymbolicStructures.deps concept.
- * 
- * @author Custom implementation for thesis
- */
+
 public class DependencyGraph {
 
     /**

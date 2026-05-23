@@ -14,8 +14,6 @@ import kodkod.ast.Relation;
  * - Relations with outdegree <= threshold go to Rp
  * - Relations with outdegree > threshold go to remainder
  * 
- * Based on Pardinus relation partitioning strategy.
- * 
  * @author Custom implementation for thesis
  */
 public class RelationPartitioner {
@@ -129,7 +127,7 @@ public class RelationPartitioner {
             // Prefer a non-primitive component (e.g. Room, Card, Guest)
             // Primitive types are already hardcoded into Rp, no need to pick them here
             Set<String> primitiveNames = new HashSet<>(java.util.Arrays.asList(
-                "String", "Boolean", "Undefined", "Undefined_Set", "Real", "Integer"
+                "String", "Boolean", "Undefined", "Undefined_Set", "Real", "Integer", "Index"
             ));
             for (Set<Relation> component : components) {
                 Relation r = component.iterator().next();
@@ -154,8 +152,6 @@ public class RelationPartitioner {
         // 5. Assign to Rp and Rr
         partialRelations.addAll(largestComponent);
         
-        // Bắt buộc đưa các Type Relations cơ bản vào Tập cơ sở (Rp)
-        // Nếu không, Slicer sẽ đẩy mọi constraint có String/Boolean sang Pha 2
         for (Relation r : graph.getAllRelations()) {
             String name = r.name();
             if (name.equals("String") || name.equals("Boolean") || 
@@ -167,17 +163,6 @@ public class RelationPartitioner {
 
         remainderRelations.addAll(graph.getAllRelations());
         remainderRelations.removeAll(partialRelations);
-
-        System.out.println("[RelationPartitioner] Removed nodes (maxDeg=" + maxOutDegree + " or arity=3): " + removedNodes.size());
-        System.out.println("[RelationPartitioner] Removed: " + removedNodes.stream().map(Relation::name).sorted().collect(java.util.stream.Collectors.joining(", ")));
-        System.out.println("[RelationPartitioner] Subgraph nodes (" + subgraphNodes.size() + "): " + subgraphNodes.stream().map(Relation::name).sorted().collect(java.util.stream.Collectors.joining(", ")));
-        System.out.println("[RelationPartitioner] Connected components found: " + components.size());
-        for (int i = 0; i < components.size(); i++) {
-            String names = components.get(i).stream().map(Relation::name).sorted().collect(java.util.stream.Collectors.joining(", "));
-            System.out.println("  - Component " + (i+1) + " size: " + components.get(i).size() + " -> [" + names + "]");
-        }
-        System.out.println("[RelationPartitioner] Largest component selected: " + largestComponent.stream().map(Relation::name).sorted().collect(java.util.stream.Collectors.joining(", ")));
-        System.out.println("[RelationPartitioner] Final Rp: " + partialRelations.stream().map(Relation::name).sorted().collect(java.util.stream.Collectors.joining(", ")));
 
         return new PartitionResult(partialRelations, remainderRelations, maxOutDegree);
     }

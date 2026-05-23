@@ -74,13 +74,11 @@ public class SequenceOperationGroup extends OCLOperationGroup {
     public final Expression size(Expression src) {
 
         try {
-            // Sequence has arity 2, so we need undefined with arity 2
             Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
-            // For size(), we need to return an integer, so use undefined for result
             Expression result = src.eq(undefined_Set_2).thenElse(undefined, src.count().toExpression());
             return result;
         } catch (Exception e) {
-            System.out.println("❌ ERROR: " + e.getMessage());
+            System.out.println("ERROR: " + e.getMessage());
             e.printStackTrace();
             throw e;
         }
@@ -101,32 +99,18 @@ public class SequenceOperationGroup extends OCLOperationGroup {
     // OCL: srcExpr->min()
     public final Expression min(Expression src) {
         try {
-            System.out.println("\n### SequenceOperationGroup.min() DEBUG ###");
-            System.out.println("src: " + src);
-            System.out.println("src arity: " + src.arity());
-
             Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
-
-            // collect() trả về set (arity 1)
-            // Nếu src arity 1 thì đó là set các giá trị
-            // Nếu src arity 2 thì đó là sequence (index, value)
             Expression values;
             if (src.arity() == 1) {
-                // src là set (kết quả từ collect)
                 values = src;
                 System.out.println("src is a set (arity 1), using directly as values");
             } else if (src.arity() == 2) {
-                // src là sequence (index, value), extract values
                 values = Expression.UNIV.join(src);
                 System.out.println("src is a sequence (arity 2), extracting values with UNIV.join(src)");
             } else {
                 throw new RuntimeException("Unexpected src arity in min(): " + src.arity());
             }
 
-            System.out.println("values: " + values);
-            System.out.println("values arity: " + values.arity());
-
-            // Tạo biến cho giá trị cần tìm min
             Variable v = Variable.unary("v");
             Variable w = Variable.unary("w");
 
@@ -134,17 +118,10 @@ public class SequenceOperationGroup extends OCLOperationGroup {
             Formula minCondition = v.sum().lte(w.sum()).forAll(w.oneOf(values));
             Expression minValue = minCondition.comprehension(v.oneOf(values));
 
-            System.out.println("minCondition: " + minCondition);
-            System.out.println("minValue: " + minValue);
-            System.out.println("minValue arity: " + minValue.arity());
-            System.out.println("##############################################\n");
-
-            // Trả về undefined nếu src là undefined hoặc rỗng
-            // src có arity 2 nên phải so sánh với undefined_Set_2 (arity 2)
             return src.eq(undefined_Set_2).or(values.no())
                     .thenElse(undefined, minValue);
         } catch (Exception e) {
-            System.out.println("❌ ERROR in min(): " + e.getMessage());
+            System.out.println("ERROR in min(): " + e.getMessage());
             e.printStackTrace();
             throw e;
         }
@@ -153,30 +130,15 @@ public class SequenceOperationGroup extends OCLOperationGroup {
     // OCL: srcExpr->max()
     public final Expression max(Expression src) {
         try {
-            System.out.println("\n### SequenceOperationGroup.max() DEBUG ###");
-            System.out.println("src: " + src);
-            System.out.println("src arity: " + src.arity());
-
             Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
-
-            // collect() trả về set (arity 1)
-            // Nếu src arity 1 thì đó là set các giá trị
-            // Nếu src arity 2 thì đó là sequence (index, value)
             Expression values;
             if (src.arity() == 1) {
-                // src là set (kết quả từ collect)
                 values = src;
-                System.out.println("src is a set (arity 1), using directly as values");
             } else if (src.arity() == 2) {
-                // src là sequence (index, value), extract values
                 values = Expression.UNIV.join(src);
-                System.out.println("src is a sequence (arity 2), extracting values with UNIV.join(src)");
             } else {
                 throw new RuntimeException("Unexpected src arity in max(): " + src.arity());
             }
-
-            System.out.println("values: " + values);
-            System.out.println("values arity: " + values.arity());
 
             // Tạo biến cho giá trị cần tìm max
             Variable v = Variable.unary("v");
@@ -186,17 +148,10 @@ public class SequenceOperationGroup extends OCLOperationGroup {
             Formula maxCondition = v.sum().gte(w.sum()).forAll(w.oneOf(values));
             Expression maxValue = maxCondition.comprehension(v.oneOf(values));
 
-            System.out.println("maxCondition: " + maxCondition);
-            System.out.println("maxValue: " + maxValue);
-            System.out.println("maxValue arity: " + maxValue.arity());
-            System.out.println("##############################################\n");
-
-            // Trả về undefined nếu src là undefined hoặc rỗng
-            // src có arity 2 nên phải so sánh với undefined_Set_2 (arity 2)
             return src.eq(undefined_Set_2).or(values.no())
                     .thenElse(undefined, maxValue);
         } catch (Exception e) {
-            System.out.println("❌ ERROR in max(): " + e.getMessage());
+            System.out.println("ERROR in max(): " + e.getMessage());
             e.printStackTrace();
             throw e;
         }
@@ -205,7 +160,6 @@ public class SequenceOperationGroup extends OCLOperationGroup {
     // OCL: srcExpr->first()
     public final Expression first(Expression src) {
         try {
-
             Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
             Expression idx1 = IntConstant.constant(1).toExpression();
             Expression filterExpr = idx1.product(Expression.UNIV);
@@ -223,45 +177,28 @@ public class SequenceOperationGroup extends OCLOperationGroup {
     // OCL: srcExpr->last()
     public final Expression last(Expression src) {
         try {
-            System.out.println("\n### SequenceOperationGroup.last() DEBUG ###");
-            System.out.println("src: " + src);
-            System.out.println("src arity: " + src.arity());
-
             Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
 
             Variable idx = Variable.unary("idx");
             Variable maxIdx = Variable.unary("maxIdx");
 
-            // Get all indices from src
-            // src is binary (index, value), project to index column by joining from right
-            Expression indices = src.join(Expression.UNIV); // join phải -> lấy cột index
-            System.out.println("indices arity: " + indices.arity());
-
+            Expression indices = src.join(Expression.UNIV); 
             // maxIdx is the index where all other indices are <= it
             // Similar to max() pattern in SetOperationGroup
             Expression maxIndex = maxIdx.sum().gte(idx.sum())
                     .forAll(idx.oneOf(indices))
                     .comprehension(maxIdx.oneOf(indices));
-            System.out.println("maxIndex arity: " + maxIndex.arity());
-
             // Get value at maxIndex
             // For binary (index, value), filter is maxIndex.product(UNIV)
             Expression filterExpr = maxIndex.product(Expression.UNIV);
-            System.out.println("filterExpr arity: " + filterExpr.arity());
-
             Expression lastTuples = src.intersection(filterExpr);
-            System.out.println("lastTuples arity: " + lastTuples.arity());
-
             // Project to value column: join from LEFT with UNIV to get value (right column)
             // lastTuples is (index, value), UNIV.join(lastTuples) gives value
             Expression lastValue = Expression.UNIV.join(lastTuples);
-            System.out.println("lastValue arity: " + lastValue.arity());
-            System.out.println("##############################################\n");
-
             return src.eq(undefined_Set_2).or(src.no())
                     .thenElse(undefined, lastValue);
         } catch (Exception e) {
-            System.out.println("❌ ERROR in last(): " + e.getMessage());
+            System.out.println("ERROR in last(): " + e.getMessage());
             e.printStackTrace();
             throw e;
         }
@@ -398,40 +335,18 @@ public class SequenceOperationGroup extends OCLOperationGroup {
     // OCL: srcExpr->collect(var | bodyExpr)
     public final Expression collect(Expression src, Expression body, Variable var) {
         try {
-            System.out.println("\n### SequenceOperationGroup.collect() DEBUG ###");
-            System.out.println("src: " + src);
-            System.out.println("src arity: " + src.arity());
-            System.out.println("body: " + body);
-            System.out.println("body arity: " + body.arity());
-            System.out.println("var: " + var);
-            System.out.println("var arity: " + var.arity());
-            System.out.println("var name: " + var.name());
-
             Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
-
-            // Bước 1: Project src để lấy values (unary)
-            // src có dạng (index, value) với arity 2
-            // var có dạng (index, value) với arity 2
-            // UNIV.join(src) sẽ lấy cột value (arity 1)
-            // values là tập hợp các giá trị trong sequence
             Expression values = Expression.UNIV.join(src);
-            System.out.println("values (UNIV.join(src)): " + values);
-            System.out.println("values arity: " + values.arity());
 
-            // Bước 2: Extract attribute từ body và rebuild với val
+            // Extract attribute từ body và rebuild với val
             Expression attribute = null;
 
             if (body instanceof BinaryExpression) {
                 BinaryExpression binBody = (BinaryExpression) body;
-                System.out.println("body.left(): " + binBody.left());
-                System.out.println("body.right(): " + binBody.right());
-                System.out.println("body.left().equals(var): " + binBody.left().equals(var));
-
+               
                 if (binBody.left().equals(var)) {
                     // body = var.join(attribute)
                     attribute = binBody.right();
-                    System.out.println("Extracted attribute: " + attribute);
-                    System.out.println("attribute arity: " + attribute.arity());
                 } else {
                     throw new RuntimeException("Unexpected body structure: left is not var. body=" + body);
                 }
@@ -442,13 +357,9 @@ public class SequenceOperationGroup extends OCLOperationGroup {
             // Bước 3: Tạo biến val và res (unary)
             Variable val = Variable.unary("val");
             Variable res = Variable.unary("res");
-            System.out.println("val (new unary variable): " + val);
-            System.out.println("res (new unary variable): " + res);
-
+           
             // Bước 4: Rebuild body với val (unary)
             Expression bodyWithVal = val.join(attribute); // arity 1 (vì val là unary)
-            System.out.println("bodyWithVal (val.join(attribute)): " + bodyWithVal);
-            System.out.println("bodyWithVal arity: " + bodyWithVal.arity());
 
             // Bước 5: Tạo Decls cho val và res
             Decls decls = val.oneOf(values).and(res.oneOf(bodyWithVal));
@@ -457,25 +368,16 @@ public class SequenceOperationGroup extends OCLOperationGroup {
             // Bước 6: Dùng comprehension với Decls
             // Kết quả comprehension là tập hợp các res ứng với mỗi val
             Expression comprehension = Formula.TRUE.comprehension(decls);
-            System.out.println("comprehension: " + comprehension);
-            System.out.println("comprehension arity: " + comprehension.arity());
 
             Expression functionApplication = Expression.UNIV.join(comprehension);
-            System.out.println("functionApplication (UNIV.join(comprehension)): " + functionApplication);
-            System.out.println("functionApplication arity: " + functionApplication.arity());
-
             // Bước 7: Flatten kết quả
             Expression flattenedResult = functionApplication.difference(undefined_Set).count()
                     .lt(functionApplication.count())
                     .thenElse(functionApplication.difference(undefined_Set).union(undefined), functionApplication);
 
-            System.out.println("flattenedResult: " + flattenedResult);
-            System.out.println("flattenedResult arity: " + flattenedResult.arity());
-            System.out.println("##############################################\n");
-
             return src.eq(undefined_Set_2).thenElse(undefined_Set, flattenedResult);
         } catch (Exception e) {
-            System.out.println("❌ ERROR in collect(): " + e.getMessage());
+            System.out.println("ERROR in collect(): " + e.getMessage());
             e.printStackTrace();
             throw e;
         }
@@ -562,7 +464,6 @@ public class SequenceOperationGroup extends OCLOperationGroup {
 
         Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
         Expression values = Expression.UNIV.join(src);
-        System.out.println("values: " + values);
 
         Expression intersection = elem.intersection(values);
 

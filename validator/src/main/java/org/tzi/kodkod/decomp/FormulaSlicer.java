@@ -45,31 +45,7 @@ import kodkod.ast.UnaryIntExpression;
 import kodkod.ast.Variable;
 import kodkod.ast.visitor.AbstractVoidVisitor;
 
-/**
- * Slices a first-order logic formula into two conjuncts based on a set of
- * "partial" relations.
- * 
- * <p>
- * Given a formula F and a set of partial relations Rp, this slicer divides F
- * into:
- * <ul>
- * <li><b>F1 (partial formula)</b>: Conjuncts that ONLY reference relations in
- * Rp</li>
- * <li><b>F2 (remainder formula)</b>: Conjuncts that reference at least one
- * relation NOT in Rp</li>
- * </ul>
- * 
- * <p>
- * The slicing is based on analyzing which relations each conjunct references.
- * A conjunct goes to F1 only if ALL its relations are in the partial set.
- * 
- * <p>
- * This is inspired by Pardinus's DecompFormulaSlicer but adapted for the USE
- * validator. Uses a custom RelationCollector since Kodkod's internal classes
- * are not accessible.
- * 
- * @author Custom implementation for thesis
- */
+
 public class FormulaSlicer {
 
     /**
@@ -157,11 +133,6 @@ public class FormulaSlicer {
                 f2.add(f);
             }
         }
-
-        System.out.println("[FormulaSlicer] Flat conjuncts: " + flatConjuncts.size()
-                + "  -> f1 (Rp-only): " + f1.size()
-                + ",  f2 (uses Rr): " + f2.size());
-
         return new SliceResult(Formula.and(f1), Formula.and(f2), f1, f2);
     }
 

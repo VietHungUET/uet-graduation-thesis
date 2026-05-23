@@ -78,15 +78,6 @@ public class BoundsVisitor extends SimpleVisitor {
 		}
 		TupleSet lower = attribute.lowerBound(tupleFactory);
 		TupleSet upper = attribute.upperBound(tupleFactory);
-
-		System.out.println("\n### BoundsVisitor.visitAttribute: " + attribute.name() + " ###");
-		System.out.println("Relation: " + attribute.relation());
-		System.out.println("LowerBound size: " + lower.size());
-		System.out.println("LowerBound: " + lower);
-		System.out.println("UpperBound size: " + upper.size());
-		System.out.println("UpperBound: " + upper);
-		System.out.println("###################################################\n");
-
 		bounds.bound(attribute.relation(), lower, upper);
 
 		// Register model relation and dependencies for decomposition

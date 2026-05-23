@@ -168,26 +168,10 @@ public class VariableOperationVisitor extends DefaultExpressionVisitor {
 		} else {
 			collectionType = CollectionType.OBJECT;
 		}
-
-		System.out.println("=== handleRegularAttribute ===");
-		System.out.println("Attribute: " + attribute.name());
-		System.out.println("Type: " + attribute.type());
-		System.out.println("isSequence: " + isSequence);
-		System.out.println("collectionType: " + CollectionType.toString(collectionType));
-
 		List<Object> arguments = new ArrayList<Object>();
 		arguments.add(object);
 		arguments.add(attribute.relation());
 		arguments.add(collectionType);
-
-		System.out.println("Arguments size: " + arguments.size());
-		System.out.println("Arg[0] class: " + arguments.get(0).getClass().getName());
-		System.out.println("Arg[1] class: " + arguments.get(1).getClass().getName());
-		System.out.println("Arg[2] class: " + arguments.get(2).getClass().getName());
-		System.out.println("Arg[2] value: " + arguments.get(2));
-		System.out.println("Calling invokeMethod with collectionType: " + CollectionType.toString(collectionType));
-		System.out.println("==============================\n");
-
 		invokeMethod("access", arguments, org.tzi.kodkod.ocl.CollectionType.OBJECT);
 	}
 

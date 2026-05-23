@@ -137,43 +137,22 @@ public class DecomposedKodkodSolver {
         Set<Relation> partialRelations = partition.getPartialRelations();
         Set<Relation> remainderRelations = partition.getRemainderRelations();
 
-        System.out.println("\n=== Relation Partitioning ===");
-        System.out.println("Rp (partial, outdegree < max): " + partialRelations.size());
-        System.out.println("Rr (remainder, outdegree = max): " + remainderRelations.size());
-        System.out.println("\nRp relations:");
-        for (Relation r : partialRelations) {
-            System.out.println("  - " + r.name());
-        }
-        System.out.println("\nRr relations:");
-        for (Relation r : remainderRelations) {
-            System.out.println("  - " + r.name());
-        }
-        System.out.println("==============================\n");
-
         // Check if decomposition is worthwhile
         if (partialRelations.isEmpty() || remainderRelations.isEmpty()) {
             System.out.println("Decomposition NOT applicable (trivial partition)");
             System.out.println("Falling back to standard solver...\n");
             // No benefit from decomposition - solve directly
             Solution fallbackSolution = solver1.solve(formula, bounds);
-            System.out.println("[CNF] Clauses (fallback): " + fallbackSolution.stats().clauses());
             return fallbackSolution;
         }
-
-        System.out.println("Decomposition applicable! Starting 2-phase solving...\n");
 
         // Step 3: Slice formula
         SliceResult slice = FormulaSlicer.slice(formula, partialRelations, remainderRelations);
         Formula partialFormula = slice.getPartialFormula();
 
-        System.out.println("\n[FormulaSlicer DEBUG] Constraints in f1 (Rp-only):");
-        for (Formula f : slice.getPartialConjuncts()) {
-            System.out.println("  " + f);
-        }
 
         // Relation Pulling Mechanism: Ensure Rp has at least one constraint
         if (slice.getPartialConjuncts().isEmpty() && !slice.getRemainderConjuncts().isEmpty()) {
-            System.out.println("\n[PullingMechanism] Rp contains no constraints! Triggering relation pull...");
 
             // 1. Gather candidates (fv of each remainder conjunct)
             java.util.List<java.util.Set<Relation>> candidates = new java.util.ArrayList<>();
@@ -243,7 +222,6 @@ public class DecomposedKodkodSolver {
             }
 
             if (bestCandidate != null) {
-                System.out.println("[PullingMechanism] Selected candidate with Cost=" + minCost + ", Size=" + minSize);
 
                 // 5. Pull relations and dependencies
                 java.util.Set<Relation> toPull = new java.util.HashSet<>();
@@ -257,7 +235,6 @@ public class DecomposedKodkodSolver {
                 for (Relation r : toPull) {
                     if (remainderRelations.remove(r)) {
                         partialRelations.add(r);
-                        System.out.println("  -> Pulled to Rp: " + r.name());
                     }
                 }
 
@@ -271,7 +248,6 @@ public class DecomposedKodkodSolver {
         Bounds partialBounds = createPartialBounds(bounds, partialRelations);
 
         // Step 5: Get iterator for all Phase 1 solutions (configurations)
-        System.out.println("=== [Phase 1] Solving Rp ===");
         long startPhase1 = System.currentTimeMillis();
         java.util.Iterator<Solution> phase1Iterator = solver1.solveAll(partialFormula, partialBounds);
 
@@ -288,28 +264,11 @@ public class DecomposedKodkodSolver {
             if (!phase1Solution.sat()) {
                 // No more configurations available
                 lastUnsatSolution = phase1Solution;
-                System.out.println("Phase 1: UNSAT");
-                System.out.println("[CNF] Clauses (Phase 1): " + phase1Solution.stats().clauses()
-                        + "  [" + phase1Solution.outcome() + "]\n");
                 break;
             }
 
             phase1Solutions++;
-            System.out.println("Phase 1: SAT (config #" + configCount + ")");
-            System.out.println("[CNF] Clauses (Phase 1): " + phase1Solution.stats().clauses()
-                    + "  [" + phase1Solution.outcome() + "]"
-                    + (phase1Solution.stats().clauses() == 0 ? "  <- trivially solved, no CNF generated" : ""));
-
-            // DEBUG: print the actual Phase 1 instance
-            if (phase1Solution.instance() != null) {
-                System.out.println("[Phase 1 Instance DEBUG]:");
-                for (Relation r : partialRelations) {
-                    if (phase1Solution.instance().contains(r)) {
-                        System.out.println("  " + r.name() + " = " + phase1Solution.instance().tuples(r));
-                    }
-                }
-            }
-
+           
             // Step 7: Create integrated bounds using partial solution
             Instance partialInstance = phase1Solution.instance();
 
@@ -317,32 +276,7 @@ public class DecomposedKodkodSolver {
                     partialInstance, bounds, partialRelations, remainderRelations);
 
             // Step 8: Solve Phase 2 (Integrated Problem)
-            System.out.println("=== [Phase 2] Solving full problem ===");
-
-            // DEBUG: print integrated bounds on first config only
-            if (configCount == 1) {
-                System.out.println("[IntegratedBounds DEBUG] All bounded relations:");
-                for (kodkod.ast.Relation r : integratedBounds.relations()) {
-                    kodkod.instance.TupleSet lb = integratedBounds.lowerBound(r);
-                    kodkod.instance.TupleSet ub = integratedBounds.upperBound(r);
-                    boolean invalid = (lb != null && ub != null && lb.size() > ub.size());
-                    System.out.println("  " + r.name()
-                            + "  lb=" + (lb == null ? "null" : lb.size())
-                            + "  ub=" + (ub == null ? "null" : ub.size())
-                            + (invalid ? "  *** INVALID: lb > ub ***" : ""));
-                }
-                System.out.println("[IntegratedBounds DEBUG] IntBounds ints count: "
-                        + integratedBounds.ints().size());
-                // Check original formula relations vs integrated
-                java.util.Set<kodkod.ast.Relation> formulaRels = org.tzi.kodkod.decomp.FormulaSlicer
-                        .collectRelations(formula);
-                for (kodkod.ast.Relation r : formulaRels) {
-                    if (integratedBounds.lowerBound(r) == null) {
-                        System.out.println("  *** MISSING FROM BOUNDS: " + r.name() + " ***");
-                    }
-                }
-            }
-
+         
             long startPhase2 = System.currentTimeMillis();
             Solution phase2Solution = solver2.solve(formula, integratedBounds);
             phase2Time = System.currentTimeMillis() - startPhase2;
@@ -398,27 +332,13 @@ public class DecomposedKodkodSolver {
         DependencyGraph graph = new DependencyGraph();
 
         if (symbolicManager != null) {
-            System.out.println("\n=== Building Dependency Graph ===");
-
-            // Lay tap chinh xac cac model relations (class/attribute/association)
-            // da duoc dang ky qua registerModelRelation() trong BoundsVisitor.
-            // Type relations (String_Reading, Boolean_True, Undefined...) KHONG co trong
-            // tap nay.
             Set<Relation> modelRels = symbolicManager.getAllModelRelations();
 
-            // Them model relations vao graph, bo qua cac relation co upper bound rong
-            // (vi du: Real khi model khong dung kieu Real - upper=[] thi khong can giai)
-            int addedCount = 0;
             for (Relation r : modelRels) {
                 kodkod.instance.TupleSet upper = bounds.upperBound(r);
                 if (upper != null && !upper.isEmpty()) {
                     graph.addRelation(r);
-                    addedCount++;
                 }
-            }
-            System.out.println("Total model relations: " + addedCount);
-            for (Relation r : graph.getAllRelations()) {
-                System.out.println("  [Model] " + r.name());
             }
 
             Map<Relation, Set<Relation>> allDeps = symbolicManager.getAllDependencies();
@@ -435,77 +355,34 @@ public class DecomposedKodkodSolver {
                 }
             }
 
-            // [THESIS] Theo yeu cau: Nối String với các relation phụ thuộc nó
-            Relation stringRel = null;
-            for (Relation r : bounds.relations()) {
-                if ("String".equals(r.name())) {
-                    stringRel = r;
-                    break;
-                }
-            }
-            if (stringRel != null) {
-                kodkod.instance.TupleSet stringTuples = bounds.upperBound(stringRel);
-                if (stringTuples != null && !stringTuples.isEmpty()) {
-                    for (Relation r : modelRels) {
-                        if (r == stringRel)
-                            continue;
-                        kodkod.instance.TupleSet ub = bounds.upperBound(r);
-                        if (ub != null) {
-                            boolean usesString = false;
-                            java.util.Iterator<kodkod.instance.Tuple> it = ub.iterator();
-                            while (it.hasNext() && !usesString) {
-                                kodkod.instance.Tuple t = it.next();
-                                // Check if any atom in the tuple belongs to the String relation
-                                for (int i = 0; i < t.arity(); i++) {
-                                    Object atom = t.atom(i);
-                                    if (stringTuples.contains(bounds.universe().factory().tuple(atom))) {
-                                        usesString = true;
-                                        break;
-                                    }
-                                }
-                            }
-                            if (usesString) {
-                                graph.addDependency(r, stringRel);
-                                System.out.println("  " + r.name() + " -> String ");
-                            }
-                        }
-                    }
-                }
-            }
-
-            // [THESIS] Theo yeu cau: Tạo relation giả Integer để xây dependency graph
-            Relation fakeIntegerRel = Relation.unary("Integer");
-            boolean integerUsed = false;
+            Relation fakeIndexRel = Relation.unary("Index");
+            boolean indexUsed = false;
             for (Relation r : modelRels) {
                 kodkod.instance.TupleSet ub = bounds.upperBound(r);
                 if (ub != null) {
-                    boolean usesInteger = false;
+                    boolean usesIndex = false;
                     java.util.Iterator<kodkod.instance.Tuple> it = ub.iterator();
-                    while (it.hasNext() && !usesInteger) {
+                    while (it.hasNext() && !usesIndex) {
                         kodkod.instance.Tuple t = it.next();
                         for (int i = 0; i < t.arity(); i++) {
                             Object atom = t.atom(i);
-                            // Trong Kodkod USE validator, so nguyen thuong la java.lang.Integer hoac String
-                            // bieu dien so
+                            // Kiem tra gia tri so nguyen (dai dien cho index cua Sequence)
                             if (atom instanceof Integer
                                     || (atom instanceof String && ((String) atom).matches("-?\\d+"))) {
-                                usesInteger = true;
+                                usesIndex = true;
                                 break;
                             }
                         }
                     }
-                    if (usesInteger && r.arity() >= 3) {
-                        integerUsed = true;
-                        graph.addDependency(r, fakeIntegerRel);
-                        System.out.println("  " + r.name() + " -> Integer ");
+                    if (usesIndex && r.arity() >= 3) {
+                        indexUsed = true;
+                        graph.addDependency(r, fakeIndexRel);
                     }
                 }
             }
-            if (integerUsed) {
-                graph.addRelation(fakeIntegerRel);
+            if (indexUsed) {
+                graph.addRelation(fakeIndexRel);
             }
-
-            System.out.println("=================================\n");
         } else {
             // Fallback khi khong co SymbolicBoundsManager:
             // Them tat ca relations tu bounds (fallback an toan)

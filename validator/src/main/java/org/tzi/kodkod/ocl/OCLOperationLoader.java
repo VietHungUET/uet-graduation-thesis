@@ -64,33 +64,15 @@ public class OCLOperationLoader {
 			operatorName = registry.getSymbolOperationMapping().get(opName);
 		}
 
-		System.out.println("\n*** OCLOperationLoader.getOperationMethod ***");
-		System.out.println("Operation name: " + operatorName);
-		System.out.println("Collection type: " + CollectionType.toString(collectionType));
-		System.out.println("Arguments count: " + arguments.size());
-		System.out.print("Parameter types: ");
 
 		LOG.debug("Search: " + operatorName + " - collection type: " + CollectionType.toString(collectionType)
 				+ " - args: " + arguments.size());
 
 		Method method = searchMethod(operatorName, parameterTypes, collectionType);
 
-		if (method != null) {
-			System.out.println("✅ Found method: " + method);
-			System.out.println("   In group: " + oclOperationGroup.getClass().getSimpleName());
-		} else {
-			System.out.println("❌ Method not found, trying research...");
-		}
 		if (method == null) {
 			method = research(opName, collectionType, parameterTypes);
-			if (method != null) {
-				System.out.println("✅ Found via research: " + method);
-			} else {
-				System.out.println("❌ Still not found after research!");
-			}
 		}
-		System.out.println("*******************************************\n");
-
 		return method;
 	}
 
@@ -136,8 +118,6 @@ public class OCLOperationLoader {
 	private Method searchMethod(String opName, Class<?>[] parameterTypes, int collectionType) {
 		Method method = null;
 
-		System.out.println("\n>>> searchMethod: " + opName);
-		System.out.println("    Looking for collection type: " + CollectionType.toString(collectionType));
 
 		for (OCLOperationGroup operation : registry.getOperationGroups()) {
 			try {
@@ -145,11 +125,6 @@ public class OCLOperationLoader {
 
 				if (method != null) {
 					oclOperationGroup = operation;
-					int groupType = oclOperationGroup.getCollectionType();
-					System.out.println("    Found in: " + operation.getClass().getSimpleName());
-					System.out.println("    Group type: " + CollectionType.toString(groupType));
-					System.out.println("    Match? " + (groupType == collectionType));
-
 					if (oclOperationGroup.getCollectionType() == collectionType) {
 						LOG.debug("Find: " + oclOperationGroup.getClass().getSimpleName() + " - " + method.getName()
 								+ " (type: " + CollectionType.toString(collectionType) + ")");

@@ -68,26 +68,17 @@ public class Attribute extends ModelElement implements IAttribute {
 	 * Creates the formula for the domain definition.
 	 */
 	private Formula domainDefinition() {
-		System.out.println("\n### domainDefinition() for " + name() + " ###");
-		System.out.println("Type: " + type);
-		System.out.println("isSequence: " + type.isSequence());
+		
 
 		Formula formula;
 		if (type.isSequence()) {
 			// For ternary relation (object, index, value): first column must be owner
-			// objects
 			Expression projection = relation.join(Expression.UNIV).join(Expression.UNIV);
-			System.out.println("Projection: " + projection);
-			System.out.println("Projection arity: " + projection.arity());
-			System.out.println("Owner relation: " + getOwnerRelation());
-
 			formula = projection.in(getOwnerRelation());
 		} else {
 			formula = relation.join(Expression.UNIV).in(getOwnerRelation());
 		}
 
-		System.out.println("Domain formula: " + formula);
-		System.out.println("######################################\n");
 		LOG.debug("Domain of " + name() + ": " + PrintHelper.prettyKodkod(formula));
 		return formula;
 	}
@@ -96,10 +87,6 @@ public class Attribute extends ModelElement implements IAttribute {
 		Relation undefined = model.typeFactory().undefinedType().relation();
 		Relation undefinedSet = model.typeFactory().undefinedSetType().relation();
 
-		System.out.println("\n### typeDefinition() for " + name() + " ###");
-		System.out.println("Type: " + type);
-		System.out.println("isSequence: " + type.isSequence());
-		System.out.println("isSet: " + type.isSet());
 
 		Formula formula;
 		if (type.isSet()) {
@@ -110,18 +97,14 @@ public class Attribute extends ModelElement implements IAttribute {
 			org.tzi.kodkod.model.type.SequenceType seqType = (org.tzi.kodkod.model.type.SequenceType) type;
 			Expression valueExpression = seqType.elemType().expression();
 
-			System.out.println("valueExpression: " + valueExpression);
-			System.out.println("valueExpression arity: " + valueExpression.arity());
+			
 
 			// UNIV.join(relation) gives (index, value) with arity 2
 			Expression indexValuePairs = Expression.UNIV.join(relation);
-			System.out.println("indexValuePairs: " + indexValuePairs);
-			System.out.println("indexValuePairs arity: " + indexValuePairs.arity());
+			
 
 			// For arity 2 expressions, we need undefinedSet_2 for comparison
 			Expression undefinedSet_2 = undefinedSet.product(Expression.UNIV);
-			System.out.println("undefinedSet_2: " + undefinedSet_2);
-			System.out.println("undefinedSet_2 arity: " + undefinedSet_2.arity());
 
 			// Project to index column: (index, value).join(UNIV) gives index
 			Formula indexFormula = indexValuePairs.join(Expression.UNIV).in(Expression.INTS);
@@ -129,23 +112,18 @@ public class Attribute extends ModelElement implements IAttribute {
 
 			// Project to value column: UNIV.join((index, value)) gives value
 			Expression valueColumn = Expression.UNIV.join(indexValuePairs);
-			System.out.println("valueColumn: " + valueColumn);
-			System.out.println("valueColumn arity: " + valueColumn.arity());
+			
 
 			Formula valueFormula = valueColumn.in(valueExpression.union(undefined));
-			System.out.println("valueFormula: " + valueFormula);
 
 			// The whole expression can be undefined (arity 2)
 			Formula notUndefinedFormula = indexValuePairs.eq(undefinedSet_2).not();
-			System.out.println("notUndefinedFormula: " + notUndefinedFormula);
-
 			formula = notUndefinedFormula.implies(indexFormula.and(valueFormula));
-			System.out.println("Final formula: " + formula);
+			
 		} else {
 			formula = Expression.UNIV.join(relation).in(type.expression().union(undefined));
 		}
 
-		System.out.println("######################################\n");
 		LOG.debug("Type of " + name() + ": " + PrintHelper.prettyKodkod(formula));
 		return formula;
 	}

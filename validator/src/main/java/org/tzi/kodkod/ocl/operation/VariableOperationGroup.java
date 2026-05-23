@@ -93,36 +93,12 @@ public class VariableOperationGroup extends OCLOperationGroup {
 		return res;
 	}
 
-	// public final Expression access(Expression srcExpr, Expression attribute,
-	// Boolean set_type) {
-	// if (set_type) {
-	// returnsSet = true;
-	// return srcExpr.eq(undefined).thenElse(undefined_Set,
-	// srcExpr.join(attribute));
-	// } else {
-	// returnsSet = false;
-	// return srcExpr.eq(undefined).thenElse(undefined, srcExpr.join(attribute));
-	// }
-	// }
-
-	// Thêm overload mới
 	public final Expression access(Expression srcExpr, Expression attribute, Integer collectionType) {
 		try {
-			System.out.println("\n@@@ VariableOperationGroup.access() called @@@");
-			System.out.println("srcExpr: " + srcExpr);
-			System.out.println("srcExpr class: " + srcExpr.getClass().getName());
-			System.out.println("srcExpr arity: " + srcExpr.arity());
-			System.out.println("attribute: " + attribute);
-			System.out.println("attribute class: " + attribute.getClass().getName());
-			if (attribute instanceof kodkod.ast.Relation) {
-				System.out.println("attribute arity: " + ((kodkod.ast.Relation) attribute).arity());
-			}
-
+			
 			boolean isSequence = (collectionType == org.tzi.kodkod.ocl.CollectionType.SEQUENCE);
 			boolean isSet = (collectionType == org.tzi.kodkod.ocl.CollectionType.SET);
 
-			System.out.println("isSequence: " + isSequence);
-			System.out.println("isSet: " + isSet);
 
 			int srcArity = srcExpr.arity();
 
@@ -131,22 +107,18 @@ public class VariableOperationGroup extends OCLOperationGroup {
 				returnsSequence = true;
 				Expression undefined_Set_2 = undefined_Set.product(Expression.UNIV);
 				Expression joinResult = srcExpr.join(attribute);
-				System.out.println("joinResult arity: " + joinResult.arity());
 				// For sequence, srcExpr should be unary, so use undefined (arity 1)
 				return srcExpr.eq(undefined).thenElse(undefined_Set_2, joinResult);
 			} else if (isSet) {
 				returnsSet = true;
 				returnsSequence = false;
 				Expression joinResult = srcExpr.join(attribute);
-				System.out.println("joinResult arity: " + joinResult.arity());
 				// For set, srcExpr should be unary, so use undefined (arity 1)
 				return srcExpr.eq(undefined).thenElse(undefined_Set, joinResult);
 			} else {
 				returnsSet = false;
 				returnsSequence = false;
 				Expression joinResult = srcExpr.join(attribute);
-				System.out.println("joinResult arity: " + joinResult.arity());
-
 				// Handle different arities: if srcExpr has arity > 1, we can't use undefined
 				// (arity 1)
 				// In this case, we should check if the result is empty or handle it differently
@@ -161,7 +133,7 @@ public class VariableOperationGroup extends OCLOperationGroup {
 				}
 			}
 		} catch (Exception e) {
-			System.out.println("❌ ERROR in access(): " + e.getMessage());
+			System.out.println("ERROR in access(): " + e.getMessage());
 			e.printStackTrace();
 			throw e;
 		}
