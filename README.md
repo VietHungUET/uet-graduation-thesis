@@ -1,6 +1,12 @@
 # USE Model Validator
 
-This project contains a modified USE 7.1.0 build and a custom validator plugin
+This project provides a custom Model Validator plugin for USE.
+
+The plugin supports model finding for UML/OCL specifications: given a `.use`
+model and a `.properties` search-space configuration, it tries to find an object
+model that satisfies the class model and its OCL invariants.
+
+This repository contains a modified USE 7.1.0 build and a customized validator
 with Sequence support.
 
 ## Requirements
